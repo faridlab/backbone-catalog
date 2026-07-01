@@ -1,0 +1,72 @@
+# =============================================================================
+# Domain: Catalog
+# Entity: Brand
+# Description: Product brand / merek (e.g. Bosch, Makita). Adopted from VINSTEKNIK's
+# salt-laravel-product `brands` table (name/slug/short_desc/desc/logo/order/status).
+# Referenced by Item.brand_id. Identity only — no commerce.
+# =============================================================================
+
+models:
+  - name: Brand
+    collection: brands
+    description: "Product brand / merek (referenced as brand_id)"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique brand identifier"
+
+      code:
+        type: string
+        attributes: ["@required", "@max(40)"]
+        description: "Short unique code (e.g. BOSCH)"
+
+      name:
+        type: string
+        attributes: ["@required", "@max(150)"]
+        description: "Brand name"
+
+      short_description:
+        type: string?
+        attributes: ["@max(500)"]
+        description: "Brief description"
+
+      description:
+        type: string?
+        attributes: ["@max(2000)"]
+        description: "Full description"
+
+      logo_url:
+        type: string?
+        attributes: ["@max(500)"]
+        description: "Logo reference (a bucket file URL; media itself lives in backbone-bucket)"
+
+      sort_order:
+        type: int
+        attributes: ["@default(0)"]
+        description: "Display order"
+
+      status:
+        type: CatalogStatus
+        attributes: ["@default(active)"]
+        description: "Lifecycle status"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata (created_at, updated_at, deleted_at, created_by, updated_by, deleted_by)"
+
+    relations:
+      items:
+        type: Item[]
+        attributes: ["@one_to_many"]
+        description: "Items of this brand"
+        inverse: brand
+
+    indexes:
+      - type: unique
+        fields: [code]
+        where: "deleted_at IS NULL"
+      - type: index
+        fields: [status, sort_order]

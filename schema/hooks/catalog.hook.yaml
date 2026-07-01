@@ -1,0 +1,127 @@
+# =============================================================================
+# Catalog Hooks - Item/ItemGroup/Uom lifecycle + write-path rules
+# =============================================================================
+# Declarative spec of the behavior implemented in
+#   src/application/service/catalog_write_service.rs
+# and enforced by the guarded composition src/presentation/http/guarded_routes.rs,
+# proven by tests/catalog_golden_cases.rs and tests/integrity_probes.rs.
+
+module: catalog
+version: 2
+
+# -----------------------------------------------------------------------------
+# State machines - lifecycle status (shared CatalogStatus enum). `discontinued` is terminal.
+# -----------------------------------------------------------------------------
+state_machines:
+  - entity: Item
+    field: status
+    initial: active
+    states: [active, inactive, discontinued]
+    transitions:
+      - { from: active,   to: inactive,     on: deactivate }
+      - { from: inactive, to: active,       on: reactivate }
+      - { from: active,   to: discontinued, on: discontinue }
+      - { from: inactive, to: discontinued, on: discontinue }
+
+  - entity: ItemGroup
+    field: status
+    initial: active
+    states: [active, inactive, discontinued]
+    transitions:
+      - { from: active,   to: inactive, on: deactivate }
+      - { from: inactive, to: active,   on: reactivate }
+
+# -----------------------------------------------------------------------------
+# Write-path rules (validated before any write). Each maps to a stable error_code
+# and to the golden/probe case that proves it.
+# -----------------------------------------------------------------------------
+rules:
+  - id: R1
+    name: item_group_exists
+    when: writing
+    assert: "item_group_id references an existing non-deleted ItemGroup"
+    error_code: item_group_not_found
+  - id: R2
+    name: default_uom_exists
+    when: writing
+    assert: "default_uom_id references an existing non-deleted Uom"
+    error_code: uom_not_found
+  - id: R3
+    name: item_has_a_usage
+    when: writing
+    assert: "is_sales_item OR is_purchase_item OR is_stock_item"
+    error_code: no_usage_flag
+  - id: R4
+    name: unique_item_code
+    when: writing
+    assert: "item_code unique among non-deleted items"
+    error_code: duplicate_item_code
+  - id: R5
+    name: unique_barcode
+    when: writing
+    assert: "barcode unique among non-deleted items when present"
+    error_code: duplicate_barcode
+  - id: R6
+    name: item_group_parent_exists
+    when: writing
+    assert: "parent_id present => parent ItemGroup exists"
+    error_code: parent_not_found
+  - id: R7
+    name: uom_conversion_distinct
+    when: writing
+    assert: "from_uom_id != to_uom_id"
+    error_code: same_uom
+  - id: R8
+    name: uom_conversion_positive
+    when: writing
+    assert: "factor > 0"
+    error_code: non_positive_factor
+  - id: R9
+    name: uom_conversion_uoms_exist
+    when: writing
+    assert: "from_uom_id and to_uom_id reference existing non-deleted Uoms"
+    error_code: uom_not_found
+  - id: R14
+    name: brand_exists
+    when: writing
+    assert: "brand_id present => brand exists"
+    error_code: brand_not_found
+  - id: R15
+    name: non_physical_not_stockable
+    when: writing
+    assert: "item_type in {digital_good, service, subscription, gift_card} => is_stock_item = false"
+    error_code: none
+    note: "derived, not rejected — create_item forces is_stock_item false for non-physical types"
+  # Variants & attributes (see ADR-003)
+  - id: R10
+    name: attribute_value_attribute_exists
+    when: writing
+    assert: "attribute_id references an existing non-deleted Attribute"
+    error_code: attribute_not_found
+  - id: R11
+    name: item_variant_item_exists
+    when: writing
+    assert: "item_id references an existing non-deleted Item"
+    error_code: item_not_found
+  - id: R12
+    name: item_variant_unique_sku
+    when: writing
+    assert: "sku unique among non-deleted item variants"
+    error_code: duplicate_sku
+  - id: R13
+    name: item_variant_options_valid
+    when: writing
+    assert: "each option {attribute_code: value_code} resolves to a real Attribute + AttributeValue"
+    error_code: unknown_attribute_value
+    note: "unknown axis → unknown_attribute; creating a variant flips Item.has_variants = true"
+
+# -----------------------------------------------------------------------------
+# Domain events (emission is the parent service's responsibility).
+# -----------------------------------------------------------------------------
+events:
+  ItemCreated:
+    when: "an item is created"
+    payload: [item_id, item_code, item_group_id]
+  ItemDiscontinued:
+    when: "an item is discontinued"
+    payload: [item_id]

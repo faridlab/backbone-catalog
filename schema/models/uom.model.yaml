@@ -1,0 +1,78 @@
+# =============================================================================
+# Domain: Catalog
+# Entity: Uom (Unit of Measure)
+# Description: A unit in which items are counted/weighed/measured (satuan). E.g. PCS, KG, BOX,
+# LITER. Conversions between units are held in UomConversion.
+# =============================================================================
+
+models:
+  - name: Uom
+    collection: uoms
+    description: "Unit of measure (satuan) for items"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique UOM identifier"
+
+      code:
+        type: string
+        attributes: ["@required", "@max(20)"]
+        description: "Short unique symbol (e.g. PCS, KG, BOX, L)"
+
+      name:
+        type: string
+        attributes: ["@required", "@max(80)"]
+        description: "Full name (e.g. Pieces, Kilogram)"
+
+      uom_type:
+        type: UomType
+        attributes: ["@default(count)"]
+        description: "Physical dimension this unit measures"
+
+      decimal_places:
+        type: int
+        attributes: ["@default(0)", "@min(0)", "@max(6)"]
+        description: "Allowed fractional precision (0 = whole units only)"
+
+      status:
+        type: CatalogStatus
+        attributes: ["@default(active)"]
+        description: "Lifecycle status"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata (created_at, updated_at, deleted_at, created_by, updated_by, deleted_by)"
+
+    indexes:
+      - type: unique
+        fields: [code]
+        where: "deleted_at IS NULL"
+      - type: index
+        fields: [status]
+
+# =============================================================================
+# Enums
+# =============================================================================
+
+enums:
+  - name: UomType
+    description: "Physical dimension a unit measures"
+    variants:
+      - name: count
+        description: "Countable units (pcs, box, dozen)"
+        default: true
+      - name: weight
+        description: "Weight (kg, g, ton)"
+      - name: volume
+        description: "Volume (liter, ml, m3)"
+      - name: length
+        description: "Length (m, cm)"
+      - name: area
+        description: "Area (m2)"
+      - name: time
+        description: "Time (hour, day)"
+      - name: other
+        description: "Other"

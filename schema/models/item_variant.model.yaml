@@ -1,0 +1,83 @@
+# =============================================================================
+# Domain: Catalog
+# Entity: ItemVariant
+# Description: A purchasable variant SKU of a template Item (e.g. "T-Shirt / Red / M").
+# Adopted from VINSTEKNIK's product_variant_items (flat variant-as-row): each variant is its own
+# row with its own SKU, a denormalized label, and an `options` map of {attribute_code: value_code}.
+# Identity + option combination only — price/discount/stock live in promo/inventory/projections.
+# =============================================================================
+
+models:
+  - name: ItemVariant
+    collection: item_variants
+    description: "A purchasable variant SKU of a template Item (option combination)"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique variant identifier"
+
+      item_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(Item.id)"]
+        description: "Template item this variant belongs to"
+
+      sku:
+        type: string
+        attributes: ["@required", "@max(60)"]
+        description: "Variant SKU (unique)"
+
+      variant_label:
+        type: string
+        attributes: ["@required", "@max(200)"]
+        description: "Denormalized human label (e.g. 'Red / M') for display"
+
+      options:
+        type: json
+        attributes: ["@default('{}')"]
+        description: "Option map {attribute_code: value_code} — validated against the Attribute registry"
+
+      barcode:
+        type: string?
+        attributes: ["@max(60)"]
+        description: "Variant barcode / EAN (unique when present)"
+
+      is_default:
+        type: bool
+        attributes: ["@default(false)"]
+        description: "Default/primary variant shown first"
+
+      weight_per_unit:
+        type: decimal?
+        attributes: ["@precision(18,4)"]
+        description: "Overrides the item weight for this variant (optional)"
+
+      status:
+        type: CatalogStatus
+        attributes: ["@default(active)"]
+        description: "Lifecycle status"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata (created_at, updated_at, deleted_at, created_by, updated_by, deleted_by)"
+
+    relations:
+      item:
+        type: Item
+        attributes: ["@one", "@foreign_key(item_id)"]
+        description: "Template item"
+        inverse: variants
+
+    indexes:
+      - type: unique
+        fields: [sku]
+        where: "deleted_at IS NULL"
+      - type: unique
+        fields: [barcode]
+        where: "barcode IS NOT NULL AND deleted_at IS NULL"
+      - type: index
+        fields: [item_id, is_default]
+      - type: index
+        fields: [item_id, status]

@@ -1,0 +1,74 @@
+# =============================================================================
+# Catalog Module - Schema Index
+# =============================================================================
+# Version: 2.0
+# Description: Canonical product/service identity for the ERP — Item, ItemGroup (category
+# tree), Uom (unit of measure) + UomConversion. Consuming contexts hold their own
+# projections (SellableProduct in selling, PurchasableItem in buying, StockItem in
+# inventory) via logical FK to catalog.Item.id — this module owns identity + classification
+# + units only, NOT stock levels, prices, or sales/purchase config.
+# `schema: catalog` gives the module its own Postgres schema (see backbone-sapiens/bucket).
+# =============================================================================
+
+module: catalog
+version: 2
+schema: catalog
+description: "Canonical product/service identity: Item, ItemGroup, Uom (Indonesia-first)"
+
+config:
+  database: postgresql
+  soft_delete: true
+  audit: true
+  default_timestamps: true
+  generators:
+    disabled:
+      - graphql
+      - grpc
+      - proto
+      - openapi
+
+# Reuse sapiens for user identity (actors) — logical refs, no DB constraint.
+external_imports:
+  - module: sapiens
+    types: [User]
+
+# Shared value-object types available to all models in this module.
+shared_types:
+  Timestamps:
+    created_at:
+      type: datetime
+      attributes: ["@default(now)"]
+      description: "Record creation timestamp"
+    updated_at:
+      type: datetime
+      attributes: ["@updated_at"]
+      description: "Last update timestamp"
+    deleted_at:
+      type: datetime?
+      description: "Soft delete timestamp"
+
+  Actors:
+    created_by:
+      type: uuid?
+      attributes: ["@foreign_key(sapiens.User.id)"]
+      description: "User who created this record"
+    updated_by:
+      type: uuid?
+      attributes: ["@foreign_key(sapiens.User.id)"]
+      description: "User who last updated this record"
+    deleted_by:
+      type: uuid?
+      attributes: ["@foreign_key(sapiens.User.id)"]
+      description: "User who deleted this record"
+
+  Metadata: [Timestamps, Actors]
+
+# Import each entity model.
+imports:
+  - item_group.model.yaml
+  - uom.model.yaml
+  - brand.model.yaml
+  - item.model.yaml
+  - uom_conversion.model.yaml
+  - attribute.model.yaml
+  - item_variant.model.yaml

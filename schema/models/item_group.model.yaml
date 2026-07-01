@@ -1,0 +1,102 @@
+# =============================================================================
+# Domain: Catalog
+# Entity: ItemGroup
+# Description: Hierarchical classification for items (kategori barang). A tree; group nodes
+# organize, leaf nodes classify items. Referenced as item_group_id across the ERP.
+# =============================================================================
+
+models:
+  - name: ItemGroup
+    collection: item_groups
+    description: "Hierarchical item classification (category tree)"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique item-group identifier"
+
+      code:
+        type: string
+        attributes: ["@required", "@max(40)"]
+        description: "Short unique code (e.g. FG, RAW, ELECTRONICS)"
+
+      name:
+        type: string
+        attributes: ["@required", "@max(150)"]
+        description: "Category name"
+
+      parent_id:
+        type: uuid?
+        attributes: ["@foreign_key(ItemGroup.id)"]
+        description: "Parent category"
+
+      is_group:
+        type: bool
+        attributes: ["@default(false)"]
+        description: "Group node (organizes children; items usually attach to leaf nodes)"
+
+      level:
+        type: int
+        attributes: ["@default(0)", "@non_negative"]
+        description: "Hierarchy level (0 = top)"
+
+      sort_order:
+        type: int
+        attributes: ["@default(0)"]
+        description: "Display order among siblings"
+
+      status:
+        type: CatalogStatus
+        attributes: ["@default(active)"]
+        description: "Lifecycle status"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata (created_at, updated_at, deleted_at, created_by, updated_by, deleted_by)"
+
+    relations:
+      parent:
+        type: ItemGroup?
+        attributes: ["@one", "@foreign_key(parent_id)"]
+        description: "Parent category"
+        inverse: children
+
+      children:
+        type: ItemGroup[]
+        attributes: ["@one_to_many"]
+        description: "Child categories"
+        inverse: parent
+
+      items:
+        type: Item[]
+        attributes: ["@one_to_many"]
+        description: "Items classified under this group"
+        inverse: item_group
+
+    indexes:
+      - type: unique
+        fields: [code]
+        where: "deleted_at IS NULL"
+      - type: index
+        fields: [parent_id, sort_order]
+      - type: index
+        fields: [status]
+
+# =============================================================================
+# Enums
+# =============================================================================
+
+enums:
+  # Shared lifecycle status across all catalog entities.
+  - name: CatalogStatus
+    description: "Lifecycle status for catalog master data"
+    variants:
+      - name: active
+        description: "Active / sellable-and-purchasable"
+        default: true
+      - name: inactive
+        description: "Temporarily inactive"
+      - name: discontinued
+        description: "Permanently discontinued (kept for history)"

@@ -1,0 +1,199 @@
+# =============================================================================
+# Domain: Catalog
+# Entity: Item
+# Description: The canonical product/service identity (barang/jasa). Every context that sells,
+# buys, or stocks references catalog.Item.id and holds its OWN projection (SellableProduct,
+# PurchasableItem, StockItem) — this entity carries identity, classification, unit, and
+# usage flags only. NO prices, NO stock levels, NO tax rules (those live in other modules).
+# =============================================================================
+
+models:
+  - name: Item
+    collection: items
+    description: "Canonical product/service identity (referenced as item_id across the ERP)"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique item identifier"
+
+      # Identification
+      item_code:
+        type: string
+        attributes: ["@required", "@max(60)"]
+        description: "Stock keeping unit / kode barang (unique)"
+
+      name:
+        type: string
+        attributes: ["@required", "@max(200)"]
+        description: "Item name"
+
+      description:
+        type: string?
+        attributes: ["@max(2000)"]
+        description: "Long-form description"
+
+      barcode:
+        type: string?
+        attributes: ["@max(60)"]
+        description: "Primary barcode / EAN (unique when present)"
+
+      brand_id:
+        type: uuid?
+        attributes: ["@foreign_key(Brand.id)"]
+        description: "Brand / merek"
+
+      # Classification & unit
+      item_group_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(ItemGroup.id)"]
+        description: "Category (classification)"
+
+      default_uom_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(Uom.id)"]
+        description: "Stocking / base unit of measure"
+
+      item_type:
+        type: ItemType
+        attributes: ["@default(physical_good)"]
+        description: "Commerce / fulfillment kind (sell anything: goods, digital, service, …)"
+
+      # Usage flags — which contexts may project this item
+      is_sales_item:
+        type: bool
+        attributes: ["@default(true)"]
+        description: "May be sold (projected as SellableProduct)"
+
+      is_purchase_item:
+        type: bool
+        attributes: ["@default(true)"]
+        description: "May be purchased (projected as PurchasableItem)"
+
+      is_stock_item:
+        type: bool
+        attributes: ["@default(true)"]
+        description: "Tracked in inventory (projected as StockItem)"
+
+      # Variants — when true, purchasable units are this item's ItemVariant rows (each its own
+      # SKU/option combination). When false, the Item itself is the purchasable unit.
+      has_variants:
+        type: bool
+        attributes: ["@default(false)"]
+        description: "Item is sold per variant SKU (see ItemVariant)"
+
+      # Indonesia-first statutory classification (structure only; tax rules are a separate overlay)
+      hsn_code:
+        type: string?
+        attributes: ["@max(20)"]
+        description: "HS / kode barang for customs & tax classification"
+
+      sni:
+        type: string?
+        attributes: ["@max(30)"]
+        description: "Standar Nasional Indonesia (SNI) certification number"
+
+      is_taxable:
+        type: bool
+        attributes: ["@default(true)"]
+        description: "Subject to PPN (rate/mechanics live in the tax overlay)"
+
+      # Physical attributes (optional)
+      weight_per_unit:
+        type: decimal?
+        attributes: ["@precision(18,4)"]
+        description: "Weight of one default_uom unit"
+
+      shelf_life_days:
+        type: int?
+        attributes: ["@non_negative"]
+        description: "Shelf life in days (perishables)"
+
+      # Search tags + a type-specific config bag, so heterogeneous item types (a service's
+      # duration, a digital good's license kind, a subscription's period) carry their own bits
+      # without a table per type. NOT publishing/SEO (that is the backbone-seo overlay).
+      tags:
+        type: json
+        attributes: ["@default('[]')"]
+        description: "Search tags (array of strings)"
+
+      data:
+        type: json
+        attributes: ["@default('{}')"]
+        description: "Type-specific config bag (e.g. {duration_minutes} for service, {license} for digital)"
+
+      status:
+        type: CatalogStatus
+        attributes: ["@default(active)"]
+        description: "Lifecycle status"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata (created_at, updated_at, deleted_at, created_by, updated_by, deleted_by)"
+
+    relations:
+      item_group:
+        type: ItemGroup
+        attributes: ["@one", "@foreign_key(item_group_id)"]
+        description: "Category"
+        inverse: items
+
+      brand:
+        type: Brand?
+        attributes: ["@one", "@foreign_key(brand_id)"]
+        description: "Brand"
+        inverse: items
+
+      default_uom:
+        type: Uom
+        attributes: ["@one", "@foreign_key(default_uom_id)"]
+        description: "Base unit"
+        inverse: items
+
+      variants:
+        type: ItemVariant[]
+        attributes: ["@one_to_many"]
+        description: "Sellable variant SKUs (when has_variants)"
+        inverse: item
+
+    indexes:
+      - type: unique
+        fields: [item_code]
+        where: "deleted_at IS NULL"
+      - type: unique
+        fields: [barcode]
+        where: "barcode IS NOT NULL AND deleted_at IS NULL"
+      - type: index
+        fields: [item_group_id, status]
+      - type: index
+        fields: [item_type]
+      - type: index
+        fields: [status]
+
+# =============================================================================
+# Enums
+# =============================================================================
+
+enums:
+  # The COMMERCE / fulfillment kind — "sell anything". Drives fulfillment + stockability.
+  # (Inventory classification is the `is_stock_item` flag; variant-parent is `has_variants`.)
+  - name: ItemType
+    description: "What kind of thing is being sold (commerce / fulfillment kind)"
+    variants:
+      - name: physical_good
+        description: "Tangible, shippable, stockable good (default)"
+        default: true
+      - name: digital_good
+        description: "Downloadable / license / virtual (no shipping, not stockable)"
+      - name: service
+        description: "Service / jasa performed (not stockable)"
+      - name: subscription
+        description: "Recurring access / membership (not stockable)"
+      - name: bundle
+        description: "Composite of other items (kit)"
+      - name: gift_card
+        description: "Stored-value gift card / voucher (not stockable)"
+      - name: rental
+        description: "Time-based use of a physical good"

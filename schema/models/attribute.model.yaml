@@ -1,0 +1,149 @@
+# =============================================================================
+# Domain: Catalog
+# Entity: Attribute + AttributeValue
+# Description: Reusable variant axes (e.g. Color, Size) and their option values (Red, M).
+# Adopted from VINSTEKNIK's variant/variant_unit model — kept as a GLOBAL reusable registry
+# with the presentation metadata a storefront/POS needs (swatch hex, icon, i18n label). Commerce
+# attributes (price/stock) are deliberately NOT here; those live in projections/promo/inventory.
+# =============================================================================
+
+models:
+  - name: Attribute
+    collection: attributes
+    description: "Reusable variant axis (e.g. Color, Size, Material)"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique attribute identifier"
+
+      code:
+        type: string
+        attributes: ["@required", "@max(40)"]
+        description: "Short unique code (e.g. color, size)"
+
+      name:
+        type: string
+        attributes: ["@required", "@max(100)"]
+        description: "Display name (e.g. Warna, Ukuran)"
+
+      attribute_type:
+        type: AttributeType
+        attributes: ["@default(other)"]
+        description: "Kind of axis (drives UI: swatch for color, chips for size)"
+
+      status:
+        type: CatalogStatus
+        attributes: ["@default(active)"]
+        description: "Lifecycle status"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata (created_at, updated_at, deleted_at, created_by, updated_by, deleted_by)"
+
+    relations:
+      values:
+        type: AttributeValue[]
+        attributes: ["@one_to_many"]
+        description: "Option values for this axis"
+        inverse: attribute
+
+    indexes:
+      - type: unique
+        fields: [code]
+        where: "deleted_at IS NULL"
+      - type: index
+        fields: [status]
+
+  - name: AttributeValue
+    collection: attribute_values
+    description: "An option value of an Attribute (e.g. Red, Size M) with display metadata"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique value identifier"
+
+      attribute_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(Attribute.id)"]
+        description: "Owning attribute (axis)"
+
+      code:
+        type: string
+        attributes: ["@required", "@max(40)"]
+        description: "Short code, unique within the attribute (e.g. red, m)"
+
+      label:
+        type: string
+        attributes: ["@required", "@max(100)"]
+        description: "Display label (e.g. Merah)"
+
+      label_en:
+        type: string?
+        attributes: ["@max(100)"]
+        description: "English label (e.g. Red) — Indonesia-first + English"
+
+      swatch_hex:
+        type: string?
+        attributes: ["@max(10)"]
+        description: "Color swatch hex (for color axes, e.g. #FF0000)"
+
+      icon:
+        type: string?
+        attributes: ["@max(255)"]
+        description: "Optional icon reference"
+
+      sort_order:
+        type: int
+        attributes: ["@default(0)"]
+        description: "Display order within the attribute"
+
+      status:
+        type: CatalogStatus
+        attributes: ["@default(active)"]
+        description: "Lifecycle status"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata (created_at, updated_at, deleted_at, created_by, updated_by, deleted_by)"
+
+    relations:
+      attribute:
+        type: Attribute
+        attributes: ["@one", "@foreign_key(attribute_id)"]
+        description: "Owning axis"
+        inverse: values
+
+    indexes:
+      - type: unique
+        fields: [attribute_id, code]
+        where: "deleted_at IS NULL"
+      - type: index
+        fields: [attribute_id, sort_order]
+
+# =============================================================================
+# Enums
+# =============================================================================
+
+enums:
+  - name: AttributeType
+    description: "Kind of variant axis (drives storefront/POS rendering)"
+    variants:
+      - name: color
+        description: "Color axis (renders as a swatch; uses swatch_hex)"
+      - name: size
+        description: "Size axis (renders as chips)"
+      - name: material
+        description: "Material / bahan"
+      - name: style
+        description: "Style / model"
+      - name: capacity
+        description: "Capacity / volume / power"
+      - name: other
+        description: "Other / custom"
+        default: true
