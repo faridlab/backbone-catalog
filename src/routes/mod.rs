@@ -12,13 +12,21 @@ use std::sync::Arc;
 // Import handlers
 use crate::presentation::http::{
     create_attribute_routes,
+    create_attribute_read_routes,
     create_attribute_value_routes,
+    create_attribute_value_read_routes,
     create_brand_routes,
+    create_brand_read_routes,
     create_item_routes,
+    create_item_read_routes,
     create_item_group_routes,
+    create_item_group_read_routes,
     create_item_variant_routes,
+    create_item_variant_read_routes,
     create_uom_routes,
-    create_uom_conversion_routes
+    create_uom_read_routes,
+    create_uom_conversion_routes,
+    create_uom_conversion_read_routes
 };
 
 // Import AppState for stateful routes
@@ -50,6 +58,23 @@ pub fn create_stateless_routes(module: &crate::CatalogModule) -> Router<()> {
         .merge(create_item_variant_routes(module.item_variant_service.clone()))
         .merge(create_uom_routes(module.uom_service.clone()))
         .merge(create_uom_conversion_routes(module.uom_conversion_service.clone()))
+}
+
+/// Read-only routes for the Catalog module — every entity mounted READ-ONLY (the guarded base).
+///
+/// The generic `create_stateless_routes` exposes full mutable CRUD with no domain
+/// validation; this exposes only reads, so generic mutation can't bypass a write
+/// service's invariants. Extend it: `create_readonly_catalog_routes(m).merge(my_validated_writes)`.
+pub fn create_readonly_catalog_routes(module: &crate::CatalogModule) -> Router<()> {
+    Router::new()
+        .merge(create_attribute_read_routes(module.attribute_service.clone()))
+        .merge(create_attribute_value_read_routes(module.attribute_value_service.clone()))
+        .merge(create_brand_read_routes(module.brand_service.clone()))
+        .merge(create_item_read_routes(module.item_service.clone()))
+        .merge(create_item_group_read_routes(module.item_group_service.clone()))
+        .merge(create_item_variant_read_routes(module.item_variant_service.clone()))
+        .merge(create_uom_read_routes(module.uom_service.clone()))
+        .merge(create_uom_conversion_read_routes(module.uom_conversion_service.clone()))
 }
 
 /// Get all routes (stateless) for the Catalog module.
