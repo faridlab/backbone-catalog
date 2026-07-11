@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS catalog.uom_conversions (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     from_uom_id UUID NOT NULL,
     to_uom_id UUID NOT NULL,
-    factor NUMERIC NOT NULL,
+    factor NUMERIC(18, 6) NOT NULL,
     metadata JSONB NOT NULL DEFAULT '{"created_at":null,"updated_at":null,"deleted_at":null,"created_by":null,"updated_by":null,"deleted_by":null}'::jsonb,
     PRIMARY KEY (id)
 );

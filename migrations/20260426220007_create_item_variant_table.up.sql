@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS catalog.item_variants (
     options JSONB NOT NULL DEFAULT '{}'::jsonb,
     barcode TEXT,
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
-    weight_per_unit NUMERIC,
+    weight_per_unit NUMERIC(18, 4),
     status catalog_status NOT NULL DEFAULT 'active',
     metadata JSONB NOT NULL DEFAULT '{"created_at":null,"updated_at":null,"deleted_at":null,"created_by":null,"updated_by":null,"deleted_by":null}'::jsonb,
     PRIMARY KEY (id)

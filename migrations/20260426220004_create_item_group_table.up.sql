@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS catalog.item_groups (
     name TEXT NOT NULL,
     parent_id UUID,
     is_group BOOLEAN NOT NULL DEFAULT FALSE,
-    level INTEGER NOT NULL DEFAULT 0,
+    level INTEGER NOT NULL DEFAULT 0 CHECK (level >= 0),
     sort_order INTEGER NOT NULL DEFAULT 0,
     status catalog_status NOT NULL DEFAULT 'active',
     metadata JSONB NOT NULL DEFAULT '{"created_at":null,"updated_at":null,"deleted_at":null,"created_by":null,"updated_by":null,"deleted_by":null}'::jsonb,
