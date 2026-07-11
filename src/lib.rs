@@ -31,7 +31,6 @@ pub mod handlers;   // AppState DI container (from_module / builder)
 pub mod routes;     // stateless + stateful route composers over CatalogModule
 pub mod exports;    // public cross-module API surface (DTOs, query service, events)
 // END CUSTOM
-
 // Re-exports for convenience - Domain entities
 pub use domain::entity::*;
 
