@@ -17,6 +17,7 @@ user_owned:
 
   # Behavior tests (the golden cases / oracle) + route-level integrity probes + BDD features.
   - "tests/catalog_golden_cases.rs"
+  - "tests/item_lookup.rs"
   - "tests/integrity_probes.rs"
   - "tests/features/**"
 

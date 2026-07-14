@@ -190,6 +190,18 @@ pub struct NewItemVariant {
     pub weight_per_unit: Option<Decimal>,
 }
 
+/// A scan resolved to a sellable identity: the item (always) plus the variant if the scanned code
+/// matched a variant SKU/barcode rather than the base item. POS rings against `item_id`.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct ItemHit {
+    pub item_id: Uuid,
+    pub variant_id: Option<Uuid>,
+    pub item_code: String,
+    pub name: String,
+    pub barcode: Option<String>,
+    pub sku: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct CatalogWriteService {
     db_pool: PgPool,
@@ -198,6 +210,27 @@ pub struct CatalogWriteService {
 impl CatalogWriteService {
     pub fn new(db_pool: PgPool) -> Self {
         Self { db_pool }
+    }
+
+    /// Resolve a scanned code (barcode OR SKU/item_code) to a sellable identity. Matches the base item
+    /// first (by `barcode` or `item_code`), then a variant (by `barcode` or `sku`). `None` = unknown
+    /// code. Read-only; the codes are DB-unique so at most one row matches.
+    pub async fn lookup_item(&self, code: &str) -> Result<Option<ItemHit>, CatalogWriteError> {
+        if let Some(hit) = sqlx::query_as::<_, ItemHit>(
+            r#"SELECT id AS item_id, NULL::uuid AS variant_id, item_code, name, barcode, NULL::text AS sku
+               FROM catalog.items
+               WHERE (barcode = $1 OR item_code = $1) AND (metadata->>'deleted_at') IS NULL
+               LIMIT 1"#,
+        ).bind(code).fetch_optional(&self.db_pool).await? {
+            return Ok(Some(hit));
+        }
+        let hit = sqlx::query_as::<_, ItemHit>(
+            r#"SELECT v.item_id, v.id AS variant_id, i.item_code, i.name, v.barcode, v.sku
+               FROM catalog.item_variants v JOIN catalog.items i ON i.id = v.item_id
+               WHERE (v.barcode = $1 OR v.sku = $1) AND (v.metadata->>'deleted_at') IS NULL
+               LIMIT 1"#,
+        ).bind(code).fetch_optional(&self.db_pool).await?;
+        Ok(hit)
     }
 
     async fn exists(&self, table: &str, id: Uuid) -> Result<bool, CatalogWriteError> {
