@@ -50,6 +50,7 @@ impl std::ops::Deref for AttributeValueId {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct AttributeValue {
     pub id: Uuid,
+    pub company_id: Uuid,
     pub attribute_id: Uuid,
     pub code: String,
     pub label: String,
@@ -70,9 +71,10 @@ impl AttributeValue {
     }
 
     /// Create a new AttributeValue with required fields
-    pub fn new(attribute_id: Uuid, code: String, label: String, sort_order: i32, status: CatalogStatus) -> Self {
+    pub fn new(company_id: Uuid, attribute_id: Uuid, code: String, label: String, sort_order: i32, status: CatalogStatus) -> Self {
         Self {
             id: Uuid::new_v4(),
+            company_id,
             attribute_id,
             code,
             label,
@@ -171,6 +173,9 @@ impl AttributeValue {
     pub fn apply_patch(&mut self, fields: std::collections::HashMap<String, serde_json::Value>) {
         for (key, value) in fields {
             match key.as_str() {
+                "company_id" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
+                }
                 "attribute_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.attribute_id = v; }
                 }
@@ -249,12 +254,16 @@ impl backbone_orm::EntityRepoMeta for AttributeValue {
     fn column_types() -> std::collections::HashMap<String, String> {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
+        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("attribute_id".to_string(), "uuid".to_string());
         m.insert("status".to_string(), "catalog_status".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
         &["code", "label"]
+    }
+    fn company_field() -> Option<&'static str> {
+        Some("company_id")
     }
     fn relations() -> &'static [(&'static str, &'static str, &'static str)] {
         &[("attribute", "attributes", "attributeId")]
@@ -267,6 +276,7 @@ impl backbone_orm::EntityRepoMeta for AttributeValue {
 /// System fields (id, metadata, timestamps) are auto-initialized.
 #[derive(Debug, Clone, Default)]
 pub struct AttributeValueBuilder {
+    company_id: Option<Uuid>,
     attribute_id: Option<Uuid>,
     code: Option<String>,
     label: Option<String>,
@@ -278,6 +288,12 @@ pub struct AttributeValueBuilder {
 }
 
 impl AttributeValueBuilder {
+    /// Set the company_id field (required)
+    pub fn company_id(mut self, value: Uuid) -> Self {
+        self.company_id = Some(value);
+        self
+    }
+
     /// Set the attribute_id field (required)
     pub fn attribute_id(mut self, value: Uuid) -> Self {
         self.attribute_id = Some(value);
@@ -330,12 +346,14 @@ impl AttributeValueBuilder {
     ///
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<AttributeValue, String> {
+        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let attribute_id = self.attribute_id.ok_or_else(|| "attribute_id is required".to_string())?;
         let code = self.code.ok_or_else(|| "code is required".to_string())?;
         let label = self.label.ok_or_else(|| "label is required".to_string())?;
 
         Ok(AttributeValue {
             id: Uuid::new_v4(),
+            company_id,
             attribute_id,
             code,
             label,

@@ -49,6 +49,7 @@ impl From<AttributeId> for Uuid {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttributeDto {
     pub id: AttributeId,
+    pub company_id: Uuid,
     pub code: String,
     pub name: String,
     pub attribute_type: AttributeType,
@@ -108,6 +109,7 @@ impl From<AttributeValueId> for Uuid {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttributeValueDto {
     pub id: AttributeValueId,
+    pub company_id: Uuid,
     pub attribute_id: Uuid,
     pub code: String,
     pub label: String,
@@ -170,6 +172,7 @@ impl From<BrandId> for Uuid {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrandDto {
     pub id: BrandId,
+    pub company_id: Uuid,
     pub code: String,
     pub name: String,
     pub short_description: Option<String>,
@@ -232,6 +235,7 @@ impl From<ItemId> for Uuid {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemDto {
     pub id: ItemId,
+    pub company_id: Uuid,
     pub item_code: String,
     pub name: String,
     pub description: Option<String>,
@@ -307,6 +311,7 @@ impl From<ItemGroupId> for Uuid {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemGroupDto {
     pub id: ItemGroupId,
+    pub company_id: Uuid,
     pub code: String,
     pub name: String,
     pub parent_id: Option<Uuid>,
@@ -369,6 +374,7 @@ impl From<ItemVariantId> for Uuid {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemVariantDto {
     pub id: ItemVariantId,
+    pub company_id: Uuid,
     pub item_id: Uuid,
     pub sku: String,
     pub variant_label: String,
@@ -431,6 +437,7 @@ impl From<UomId> for Uuid {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UomDto {
     pub id: UomId,
+    pub company_id: Uuid,
     pub code: String,
     pub name: String,
     pub uom_type: UomType,
@@ -491,6 +498,7 @@ impl From<UomConversionId> for Uuid {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UomConversionDto {
     pub id: UomConversionId,
+    pub company_id: Uuid,
     pub from_uom_id: Uuid,
     pub to_uom_id: Uuid,
     pub factor: Decimal,

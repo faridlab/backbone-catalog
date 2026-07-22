@@ -44,6 +44,7 @@ pub struct AttributeValuePaginatedResult {
 /// Filter parameters for list queries
 #[derive(Debug, Clone, Default)]
 pub struct AttributeValueFilter {
+    pub company_id: Option<Uuid>,
     pub attribute_id: Option<Uuid>,
     pub code: Option<String>,
     pub label: Option<String>,
@@ -56,7 +57,7 @@ pub struct AttributeValueFilter {
 impl AttributeValueFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.attribute_id.is_some() || self.code.is_some() || self.label.is_some() || self.label_en.is_some() || self.swatch_hex.is_some() || self.icon.is_some() || self.status.is_some()
+        self.company_id.is_some() || self.attribute_id.is_some() || self.code.is_some() || self.label.is_some() || self.label_en.is_some() || self.swatch_hex.is_some() || self.icon.is_some() || self.status.is_some()
     }
 }
 

@@ -44,6 +44,7 @@ pub struct ItemGroupPaginatedResult {
 /// Filter parameters for list queries
 #[derive(Debug, Clone, Default)]
 pub struct ItemGroupFilter {
+    pub company_id: Option<Uuid>,
     pub code: Option<String>,
     pub name: Option<String>,
     pub parent_id: Option<Uuid>,
@@ -54,7 +55,7 @@ pub struct ItemGroupFilter {
 impl ItemGroupFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.code.is_some() || self.name.is_some() || self.parent_id.is_some() || self.is_group.is_some() || self.status.is_some()
+        self.company_id.is_some() || self.code.is_some() || self.name.is_some() || self.parent_id.is_some() || self.is_group.is_some() || self.status.is_some()
     }
 }
 

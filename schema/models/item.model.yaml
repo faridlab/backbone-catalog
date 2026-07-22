@@ -18,11 +18,19 @@ models:
         attributes: ["@id", "@default(uuid)"]
         description: "Unique item identifier"
 
+      # Tenant scope (ADR-0010 Decision B1): every catalog entity is scoped to a
+      # company. Logical ref to organization.companies — no DB FK so this module
+      # stays independently deployable (same convention as pos/buying/inventory).
+      company_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(organization.Company.id)"]
+        description: "Owning company (tenant scope)"
+
       # Identification
       item_code:
         type: string
         attributes: ["@required", "@max(60)"]
-        description: "Stock keeping unit / kode barang (unique)"
+        description: "Stock keeping unit / kode barang (unique within the company)"
 
       name:
         type: string
@@ -160,17 +168,19 @@ models:
 
     indexes:
       - type: unique
-        fields: [item_code]
+        fields: [company_id, item_code]
         where: "deleted_at IS NULL"
       - type: unique
-        fields: [barcode]
+        fields: [company_id, barcode]
         where: "barcode IS NOT NULL AND deleted_at IS NULL"
       - type: index
-        fields: [item_group_id, status]
+        fields: [company_id, item_group_id, status]
       - type: index
-        fields: [item_type]
+        fields: [company_id, item_type]
       - type: index
-        fields: [status]
+        fields: [company_id, status]
+      - type: index
+        fields: [company_id]
 
 # =============================================================================
 # Enums

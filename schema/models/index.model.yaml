@@ -31,6 +31,12 @@ config:
 external_imports:
   - module: sapiens
     types: [User]
+  # ADR-0010 Decision B1: catalog is tenant-scoped. Company lives in the organization
+  # module (serpa-workspace); declared as a logical ref so this framework module stays
+  # independently deployable (no SQL FK to organization.companies, matching the pos
+  # convention). The RLS fence (`app.company_id`) is what enforces isolation at runtime.
+  - module: organization
+    types: [Company]
 
 # Shared value-object types available to all models in this module.
 shared_types:

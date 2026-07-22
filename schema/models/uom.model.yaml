@@ -16,10 +16,17 @@ models:
         attributes: ["@id", "@default(uuid)"]
         description: "Unique UOM identifier"
 
+      # Tenant scope (ADR-0010 Decision B1). Units are company-scoped so two tenants
+      # may define `BOX` with different decimal precision or factor without colliding.
+      company_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(organization.Company.id)"]
+        description: "Owning company (tenant scope)"
+
       code:
         type: string
         attributes: ["@required", "@max(20)"]
-        description: "Short unique symbol (e.g. PCS, KG, BOX, L)"
+        description: "Short unique symbol (e.g. PCS, KG, BOX, L) — unique within the company"
 
       name:
         type: string
@@ -48,10 +55,12 @@ models:
 
     indexes:
       - type: unique
-        fields: [code]
+        fields: [company_id, code]
         where: "deleted_at IS NULL"
       - type: index
-        fields: [status]
+        fields: [company_id, status]
+      - type: index
+        fields: [company_id]
 
 # =============================================================================
 # Enums

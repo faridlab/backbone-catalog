@@ -44,6 +44,7 @@ pub struct ItemVariantPaginatedResult {
 /// Filter parameters for list queries
 #[derive(Debug, Clone, Default)]
 pub struct ItemVariantFilter {
+    pub company_id: Option<Uuid>,
     pub item_id: Option<Uuid>,
     pub sku: Option<String>,
     pub variant_label: Option<String>,
@@ -55,7 +56,7 @@ pub struct ItemVariantFilter {
 impl ItemVariantFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.item_id.is_some() || self.sku.is_some() || self.variant_label.is_some() || self.barcode.is_some() || self.is_default.is_some() || self.status.is_some()
+        self.company_id.is_some() || self.item_id.is_some() || self.sku.is_some() || self.variant_label.is_some() || self.barcode.is_some() || self.is_default.is_some() || self.status.is_some()
     }
 }
 

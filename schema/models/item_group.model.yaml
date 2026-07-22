@@ -16,10 +16,16 @@ models:
         attributes: ["@id", "@default(uuid)"]
         description: "Unique item-group identifier"
 
+      # Tenant scope (ADR-0010 Decision B1).
+      company_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(organization.Company.id)"]
+        description: "Owning company (tenant scope)"
+
       code:
         type: string
         attributes: ["@required", "@max(40)"]
-        description: "Short unique code (e.g. FG, RAW, ELECTRONICS)"
+        description: "Short unique code (e.g. FG, RAW, ELECTRONICS) — unique within the company"
 
       name:
         type: string
@@ -77,12 +83,14 @@ models:
 
     indexes:
       - type: unique
-        fields: [code]
+        fields: [company_id, code]
         where: "deleted_at IS NULL"
       - type: index
-        fields: [parent_id, sort_order]
+        fields: [company_id, parent_id, sort_order]
       - type: index
-        fields: [status]
+        fields: [company_id, status]
+      - type: index
+        fields: [company_id]
 
 # =============================================================================
 # Enums

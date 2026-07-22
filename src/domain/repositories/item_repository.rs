@@ -44,6 +44,7 @@ pub struct ItemPaginatedResult {
 /// Filter parameters for list queries
 #[derive(Debug, Clone, Default)]
 pub struct ItemFilter {
+    pub company_id: Option<Uuid>,
     pub item_code: Option<String>,
     pub name: Option<String>,
     pub description: Option<String>,
@@ -65,7 +66,7 @@ pub struct ItemFilter {
 impl ItemFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.item_code.is_some() || self.name.is_some() || self.description.is_some() || self.barcode.is_some() || self.brand_id.is_some() || self.item_group_id.is_some() || self.default_uom_id.is_some() || self.item_type.is_some() || self.is_sales_item.is_some() || self.is_purchase_item.is_some() || self.is_stock_item.is_some() || self.has_variants.is_some() || self.hsn_code.is_some() || self.sni.is_some() || self.is_taxable.is_some() || self.status.is_some()
+        self.company_id.is_some() || self.item_code.is_some() || self.name.is_some() || self.description.is_some() || self.barcode.is_some() || self.brand_id.is_some() || self.item_group_id.is_some() || self.default_uom_id.is_some() || self.item_type.is_some() || self.is_sales_item.is_some() || self.is_purchase_item.is_some() || self.is_stock_item.is_some() || self.has_variants.is_some() || self.hsn_code.is_some() || self.sni.is_some() || self.is_taxable.is_some() || self.status.is_some()
     }
 }
 

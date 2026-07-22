@@ -7,6 +7,7 @@
 
 use async_trait::async_trait;
 use anyhow::Result;
+use uuid::Uuid;
 
 use crate::domain::entity::{Uom, CatalogStatus, UomType};
 
@@ -43,6 +44,7 @@ pub struct UomPaginatedResult {
 /// Filter parameters for list queries
 #[derive(Debug, Clone, Default)]
 pub struct UomFilter {
+    pub company_id: Option<Uuid>,
     pub code: Option<String>,
     pub name: Option<String>,
     pub uom_type: Option<UomType>,
@@ -52,7 +54,7 @@ pub struct UomFilter {
 impl UomFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.code.is_some() || self.name.is_some() || self.uom_type.is_some() || self.status.is_some()
+        self.company_id.is_some() || self.code.is_some() || self.name.is_some() || self.uom_type.is_some() || self.status.is_some()
     }
 }
 

@@ -44,6 +44,7 @@ pub struct UomConversionPaginatedResult {
 /// Filter parameters for list queries
 #[derive(Debug, Clone, Default)]
 pub struct UomConversionFilter {
+    pub company_id: Option<Uuid>,
     pub from_uom_id: Option<Uuid>,
     pub to_uom_id: Option<Uuid>,
 }
@@ -51,7 +52,7 @@ pub struct UomConversionFilter {
 impl UomConversionFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.from_uom_id.is_some() || self.to_uom_id.is_some()
+        self.company_id.is_some() || self.from_uom_id.is_some() || self.to_uom_id.is_some()
     }
 }
 

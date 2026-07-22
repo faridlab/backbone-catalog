@@ -52,6 +52,7 @@ impl std::ops::Deref for ItemId {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Item {
     pub id: Uuid,
+    pub company_id: Uuid,
     pub item_code: String,
     pub name: String,
     pub description: Option<String>,
@@ -84,9 +85,10 @@ impl Item {
     }
 
     /// Create a new Item with required fields
-    pub fn new(item_code: String, name: String, item_group_id: Uuid, default_uom_id: Uuid, item_type: ItemType, is_sales_item: bool, is_purchase_item: bool, is_stock_item: bool, has_variants: bool, is_taxable: bool, tags: serde_json::Value, data: serde_json::Value, status: CatalogStatus) -> Self {
+    pub fn new(company_id: Uuid, item_code: String, name: String, item_group_id: Uuid, default_uom_id: Uuid, item_type: ItemType, is_sales_item: bool, is_purchase_item: bool, is_stock_item: bool, has_variants: bool, is_taxable: bool, tags: serde_json::Value, data: serde_json::Value, status: CatalogStatus) -> Self {
         Self {
             id: Uuid::new_v4(),
+            company_id,
             item_code,
             name,
             description: None,
@@ -221,6 +223,9 @@ impl Item {
     pub fn apply_patch(&mut self, fields: std::collections::HashMap<String, serde_json::Value>) {
         for (key, value) in fields {
             match key.as_str() {
+                "company_id" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
+                }
                 "item_code" => {
                     if let Ok(v) = serde_json::from_value(value) { self.item_code = v; }
                 }
@@ -335,6 +340,7 @@ impl backbone_orm::EntityRepoMeta for Item {
     fn column_types() -> std::collections::HashMap<String, String> {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
+        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("brand_id".to_string(), "uuid".to_string());
         m.insert("item_group_id".to_string(), "uuid".to_string());
         m.insert("default_uom_id".to_string(), "uuid".to_string());
@@ -344,6 +350,9 @@ impl backbone_orm::EntityRepoMeta for Item {
     }
     fn search_fields() -> &'static [&'static str] {
         &["item_code", "name"]
+    }
+    fn company_field() -> Option<&'static str> {
+        Some("company_id")
     }
     fn relations() -> &'static [(&'static str, &'static str, &'static str)] {
         &[("itemGroup", "item_groups", "itemGroupId"), ("brand", "brands", "brandId"), ("defaultUom", "uoms", "defaultUomId")]
@@ -356,6 +365,7 @@ impl backbone_orm::EntityRepoMeta for Item {
 /// System fields (id, metadata, timestamps) are auto-initialized.
 #[derive(Debug, Clone, Default)]
 pub struct ItemBuilder {
+    company_id: Option<Uuid>,
     item_code: Option<String>,
     name: Option<String>,
     description: Option<String>,
@@ -379,6 +389,12 @@ pub struct ItemBuilder {
 }
 
 impl ItemBuilder {
+    /// Set the company_id field (required)
+    pub fn company_id(mut self, value: Uuid) -> Self {
+        self.company_id = Some(value);
+        self
+    }
+
     /// Set the item_code field (required)
     pub fn item_code(mut self, value: String) -> Self {
         self.item_code = Some(value);
@@ -503,6 +519,7 @@ impl ItemBuilder {
     ///
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<Item, String> {
+        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let item_code = self.item_code.ok_or_else(|| "item_code is required".to_string())?;
         let name = self.name.ok_or_else(|| "name is required".to_string())?;
         let item_group_id = self.item_group_id.ok_or_else(|| "item_group_id is required".to_string())?;
@@ -510,6 +527,7 @@ impl ItemBuilder {
 
         Ok(Item {
             id: Uuid::new_v4(),
+            company_id,
             item_code,
             name,
             description: self.description,

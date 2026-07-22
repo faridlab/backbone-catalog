@@ -17,10 +17,16 @@ models:
         attributes: ["@id", "@default(uuid)"]
         description: "Unique brand identifier"
 
+      # Tenant scope (ADR-0010 Decision B1).
+      company_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(organization.Company.id)"]
+        description: "Owning company (tenant scope)"
+
       code:
         type: string
         attributes: ["@required", "@max(40)"]
-        description: "Short unique code (e.g. BOSCH)"
+        description: "Short unique code (e.g. BOSCH) — unique within the company"
 
       name:
         type: string
@@ -66,7 +72,9 @@ models:
 
     indexes:
       - type: unique
-        fields: [code]
+        fields: [company_id, code]
         where: "deleted_at IS NULL"
       - type: index
-        fields: [status, sort_order]
+        fields: [company_id, status, sort_order]
+      - type: index
+        fields: [company_id]

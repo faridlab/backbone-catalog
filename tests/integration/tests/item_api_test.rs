@@ -24,6 +24,7 @@ impl TestDataGenerator for ItemTestData {
         let now = Utc::now().to_rfc3339();
         json!({
             "id": Uuid::new_v4().to_string(),
+            "company_id": Uuid::new_v4().to_string(),
             "item_code": format!("Test {}", Uuid::new_v4().to_string().split('-').next().unwrap()),
             "name": format!("Test {}", Uuid::new_v4().to_string().split('-').next().unwrap()),
             "description": null,
@@ -52,6 +53,7 @@ impl TestDataGenerator for ItemTestData {
         let now = Utc::now().to_rfc3339();
         json!({
             "id": id,
+            "company_id": Uuid::new_v4().to_string(),
             "item_code": format!("Test {}", Uuid::new_v4().to_string().split('-').next().unwrap()),
             "name": format!("Test {}", Uuid::new_v4().to_string().split('-').next().unwrap()),
             "description": null,

@@ -17,6 +17,12 @@ models:
         attributes: ["@id", "@default(uuid)"]
         description: "Unique conversion identifier"
 
+      # Tenant scope (ADR-0010 Decision B1); denormalized from the pair of Uoms.
+      company_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(organization.Company.id)"]
+        description: "Owning company (tenant scope; denormalized from Uom)"
+
       from_uom_id:
         type: uuid
         attributes: ["@required", "@foreign_key(Uom.id)"]
@@ -50,7 +56,9 @@ models:
 
     indexes:
       - type: unique
-        fields: [from_uom_id, to_uom_id]
+        fields: [company_id, from_uom_id, to_uom_id]
         where: "deleted_at IS NULL"
       - type: index
-        fields: [from_uom_id]
+        fields: [company_id, from_uom_id]
+      - type: index
+        fields: [company_id]

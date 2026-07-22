@@ -51,6 +51,7 @@ impl std::ops::Deref for ItemVariantId {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ItemVariant {
     pub id: Uuid,
+    pub company_id: Uuid,
     pub item_id: Uuid,
     pub sku: String,
     pub variant_label: String,
@@ -71,9 +72,10 @@ impl ItemVariant {
     }
 
     /// Create a new ItemVariant with required fields
-    pub fn new(item_id: Uuid, sku: String, variant_label: String, options: serde_json::Value, is_default: bool, status: CatalogStatus) -> Self {
+    pub fn new(company_id: Uuid, item_id: Uuid, sku: String, variant_label: String, options: serde_json::Value, is_default: bool, status: CatalogStatus) -> Self {
         Self {
             id: Uuid::new_v4(),
+            company_id,
             item_id,
             sku,
             variant_label,
@@ -166,6 +168,9 @@ impl ItemVariant {
     pub fn apply_patch(&mut self, fields: std::collections::HashMap<String, serde_json::Value>) {
         for (key, value) in fields {
             match key.as_str() {
+                "company_id" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
+                }
                 "item_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.item_id = v; }
                 }
@@ -244,12 +249,16 @@ impl backbone_orm::EntityRepoMeta for ItemVariant {
     fn column_types() -> std::collections::HashMap<String, String> {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
+        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("item_id".to_string(), "uuid".to_string());
         m.insert("status".to_string(), "catalog_status".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
         &["sku", "variant_label"]
+    }
+    fn company_field() -> Option<&'static str> {
+        Some("company_id")
     }
     fn relations() -> &'static [(&'static str, &'static str, &'static str)] {
         &[("item", "items", "itemId")]
@@ -262,6 +271,7 @@ impl backbone_orm::EntityRepoMeta for ItemVariant {
 /// System fields (id, metadata, timestamps) are auto-initialized.
 #[derive(Debug, Clone, Default)]
 pub struct ItemVariantBuilder {
+    company_id: Option<Uuid>,
     item_id: Option<Uuid>,
     sku: Option<String>,
     variant_label: Option<String>,
@@ -273,6 +283,12 @@ pub struct ItemVariantBuilder {
 }
 
 impl ItemVariantBuilder {
+    /// Set the company_id field (required)
+    pub fn company_id(mut self, value: Uuid) -> Self {
+        self.company_id = Some(value);
+        self
+    }
+
     /// Set the item_id field (required)
     pub fn item_id(mut self, value: Uuid) -> Self {
         self.item_id = Some(value);
@@ -325,12 +341,14 @@ impl ItemVariantBuilder {
     ///
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<ItemVariant, String> {
+        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let item_id = self.item_id.ok_or_else(|| "item_id is required".to_string())?;
         let sku = self.sku.ok_or_else(|| "sku is required".to_string())?;
         let variant_label = self.variant_label.ok_or_else(|| "variant_label is required".to_string())?;
 
         Ok(ItemVariant {
             id: Uuid::new_v4(),
+            company_id,
             item_id,
             sku,
             variant_label,
