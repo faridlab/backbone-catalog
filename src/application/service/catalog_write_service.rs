@@ -6,11 +6,28 @@
 //! self-referential or non-positive UOM conversion, or an item-group whose parent is missing.
 //!
 //! `CatalogModule` mounts these validated writers via `create_guarded_catalog_routes`.
+//!
+//! All SQL lives in the repository newtypes (`item_repository.rs`, `item_group_repository.rs`,
+//! `item_variant_repository.rs`, `uom_repository.rs`, `uom_conversion_repository.rs`,
+//! `attribute_repository.rs`, `attribute_value_repository.rs`, `brand_repository.rs` — each
+//! declared `user_owned` in `metaphor.codegen.yaml`). This service orchestrates the validated
+//! writes: usage-flag checks, FK existence probes, unique-constraint disambiguation, and the
+//! in-tx variant lifecycle (`has_variants` flag flips + soft-delete).
 
 use backbone_orm::company_scope;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
 use uuid::Uuid;
+
+// Re-export `ItemHit` so the service's public API surface (`application::service::ItemHit`) stays
+// stable now that the type itself lives next to the SQL that produces it.
+pub use crate::infrastructure::persistence::ItemHit;
+use crate::infrastructure::persistence::{
+    AttributeRepository, AttributeValueRepository, BrandRepository, ItemGroupRepository,
+    ItemRepository, ItemVariantRepository, NewAttributeRow, NewAttributeValueRow, NewBrandRow,
+    NewItemGroupRow, NewItemRow, NewItemVariantRow, NewUomConversionRow, NewUomRow,
+    UomConversionRepository, UomRepository,
+};
 
 #[derive(Debug)]
 pub enum CatalogWriteError {
@@ -204,18 +221,6 @@ pub struct NewItemVariant {
     pub weight_per_unit: Option<Decimal>,
 }
 
-/// A scan resolved to a sellable identity: the item (always) plus the variant if the scanned code
-/// matched a variant SKU/barcode rather than the base item. POS rings against `item_id`.
-#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
-pub struct ItemHit {
-    pub item_id: Uuid,
-    pub variant_id: Option<Uuid>,
-    pub item_code: String,
-    pub name: String,
-    pub barcode: Option<String>,
-    pub sku: Option<String>,
-}
-
 #[derive(Clone)]
 pub struct CatalogWriteService {
     db_pool: PgPool,
@@ -233,46 +238,18 @@ impl CatalogWriteService {
     /// missed scope still returns nothing instead of leaking another tenant's item.
     pub async fn lookup_item(&self, code: &str) -> Result<Option<ItemHit>, CatalogWriteError> {
         let company = company_scope::current_company();
-        if let Some(hit) = sqlx::query_as::<_, ItemHit>(
-            r#"SELECT id AS item_id, NULL::uuid AS variant_id, item_code, name, barcode, NULL::text AS sku
-               FROM catalog.items
-               WHERE (barcode = $1 OR item_code = $1)
-                 AND ($2::uuid IS NULL OR company_id = $2)
-                 AND (metadata->>'deleted_at') IS NULL
-               LIMIT 1"#,
-        ).bind(code).bind(company).fetch_optional(&self.db_pool).await? {
+        let items = ItemRepository::new(self.db_pool.clone());
+        if let Some(hit) = items
+            .find_by_scan_code(&self.db_pool, code, company)
+            .await?
+        {
             return Ok(Some(hit));
         }
-        let hit = sqlx::query_as::<_, ItemHit>(
-            r#"SELECT v.item_id, v.id AS variant_id, i.item_code, i.name, v.barcode, v.sku
-               FROM catalog.item_variants v JOIN catalog.items i ON i.id = v.item_id
-               WHERE (v.barcode = $1 OR v.sku = $1)
-                 AND ($2::uuid IS NULL OR v.company_id = $2)
-                 AND (v.metadata->>'deleted_at') IS NULL
-               LIMIT 1"#,
-        ).bind(code).bind(company).fetch_optional(&self.db_pool).await?;
-        Ok(hit)
-    }
-
-    /// Existence check filtered by the caller's company. `table` is a fixed literal from this module,
-    /// never user input. The `($2::uuid IS NULL OR company_id = $2)` shape preserves fail-closed
-    /// behavior under RLS even if the request scope wasn't set (missed scope → no rows returned).
-    async fn exists_in(
-        &self,
-        table: &str,
-        id: Uuid,
-        company: Uuid,
-    ) -> Result<bool, CatalogWriteError> {
-        let sql = format!(
-            "SELECT id FROM catalog.{table} \
-             WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL"
-        );
-        let found: Option<Uuid> = sqlx::query_scalar(&sql)
-            .bind(id)
-            .bind(company)
-            .fetch_optional(&self.db_pool)
+        let variants = ItemVariantRepository::new(self.db_pool.clone());
+        let hit = variants
+            .find_variant_by_scan_code(&self.db_pool, code, company)
             .await?;
-        Ok(found.is_some())
+        Ok(hit)
     }
 
     fn is_dup(e: &sqlx::Error, needle: &str) -> bool {
@@ -284,24 +261,26 @@ impl CatalogWriteService {
     pub async fn create_item_group(&self, g: NewItemGroup) -> Result<Uuid, CatalogWriteError> {
         let company = g.company_id;
         company_scope::with_company_scope(Some(company), async move {
+            let item_groups = ItemGroupRepository::new(self.db_pool.clone());
             if let Some(pid) = g.parent_id {
-                if !self.exists_in("item_groups", pid, company).await? {
+                if !item_groups.exists_id_in_company(&self.db_pool, pid, company).await? {
                     return Err(CatalogWriteError::ParentNotFound(pid));
                 }
             }
             let id = Uuid::new_v4();
-            let r = sqlx::query(
-                r#"INSERT INTO catalog.item_groups (id, company_id, code, name, parent_id, is_group, status)
-                   VALUES ($1,$2,$3,$4,$5,$6,'active'::catalog_status)"#,
-            )
-            .bind(id)
-            .bind(company)
-            .bind(&g.code)
-            .bind(&g.name)
-            .bind(g.parent_id)
-            .bind(g.is_group)
-            .execute(&self.db_pool)
-            .await;
+            let r = item_groups
+                .insert_item_group(
+                    &self.db_pool,
+                    &NewItemGroupRow {
+                        id,
+                        company_id: company,
+                        code: &g.code,
+                        name: &g.name,
+                        parent_id: g.parent_id,
+                        is_group: g.is_group,
+                    },
+                )
+                .await;
             match r {
                 Ok(_) => Ok(id),
                 Err(e) if Self::is_dup(&e, "code") => {
@@ -322,47 +301,49 @@ impl CatalogWriteService {
             if !(i.is_sales_item || i.is_purchase_item || is_stock_item) {
                 return Err(CatalogWriteError::NoUsageFlag);
             }
-            if !self.exists_in("item_groups", i.item_group_id, company).await? {
+            let item_groups = ItemGroupRepository::new(self.db_pool.clone());
+            if !item_groups.exists_id_in_company(&self.db_pool, i.item_group_id, company).await? {
                 return Err(CatalogWriteError::ItemGroupNotFound(i.item_group_id));
             }
-            if !self.exists_in("uoms", i.default_uom_id, company).await? {
+            let uoms = UomRepository::new(self.db_pool.clone());
+            if !uoms.exists_id_in_company(&self.db_pool, i.default_uom_id, company).await? {
                 return Err(CatalogWriteError::UomNotFound(i.default_uom_id));
             }
             if let Some(bid) = i.brand_id {
-                if !self.exists_in("brands", bid, company).await? {
+                let brands = BrandRepository::new(self.db_pool.clone());
+                if !brands.exists_id_in_company(&self.db_pool, bid, company).await? {
                     return Err(CatalogWriteError::BrandNotFound(bid));
                 }
             }
             let id = Uuid::new_v4();
             let tags = i.tags.clone().unwrap_or_else(|| serde_json::json!([]));
             let data = i.data.clone().unwrap_or_else(|| serde_json::json!({}));
-            let r = sqlx::query(
-                r#"INSERT INTO catalog.items
-                    (id, company_id, item_code, name, description, barcode, brand_id, item_group_id,
-                     default_uom_id, item_type, is_sales_item, is_purchase_item, is_stock_item,
-                     hsn_code, is_taxable, weight_per_unit, tags, data, status)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::item_type,$11,$12,$13,$14,$15,$16,$17,$18,'active'::catalog_status)"#,
-            )
-            .bind(id)
-            .bind(company)
-            .bind(&i.item_code)
-            .bind(&i.name)
-            .bind(&i.description)
-            .bind(&i.barcode)
-            .bind(i.brand_id)
-            .bind(i.item_group_id)
-            .bind(i.default_uom_id)
-            .bind(&item_type)
-            .bind(i.is_sales_item)
-            .bind(i.is_purchase_item)
-            .bind(is_stock_item)
-            .bind(&i.hsn_code)
-            .bind(i.is_taxable)
-            .bind(i.weight_per_unit)
-            .bind(&tags)
-            .bind(&data)
-            .execute(&self.db_pool)
-            .await;
+            let items = ItemRepository::new(self.db_pool.clone());
+            let r = items
+                .insert_item(
+                    &self.db_pool,
+                    &NewItemRow {
+                        id,
+                        company_id: company,
+                        item_code: &i.item_code,
+                        name: &i.name,
+                        description: i.description.as_deref(),
+                        barcode: i.barcode.as_deref(),
+                        brand_id: i.brand_id,
+                        item_group_id: i.item_group_id,
+                        default_uom_id: i.default_uom_id,
+                        item_type: &item_type,
+                        is_sales_item: i.is_sales_item,
+                        is_purchase_item: i.is_purchase_item,
+                        is_stock_item,
+                        hsn_code: i.hsn_code.as_deref(),
+                        is_taxable: i.is_taxable,
+                        weight_per_unit: i.weight_per_unit,
+                        tags: &tags,
+                        data: &data,
+                    },
+                )
+                .await;
             match r {
                 Ok(_) => Ok(id),
                 Err(e) if Self::is_dup(&e, "barcode") => Err(CatalogWriteError::DuplicateBarcode(
@@ -388,24 +369,27 @@ impl CatalogWriteService {
             if c.factor <= Decimal::ZERO {
                 return Err(CatalogWriteError::NonPositiveFactor);
             }
-            if !self.exists_in("uoms", c.from_uom_id, company).await? {
+            let uoms = UomRepository::new(self.db_pool.clone());
+            if !uoms.exists_id_in_company(&self.db_pool, c.from_uom_id, company).await? {
                 return Err(CatalogWriteError::UomNotFound(c.from_uom_id));
             }
-            if !self.exists_in("uoms", c.to_uom_id, company).await? {
+            if !uoms.exists_id_in_company(&self.db_pool, c.to_uom_id, company).await? {
                 return Err(CatalogWriteError::UomNotFound(c.to_uom_id));
             }
             let id = Uuid::new_v4();
-            let r = sqlx::query(
-                r#"INSERT INTO catalog.uom_conversions (id, company_id, from_uom_id, to_uom_id, factor)
-                   VALUES ($1,$2,$3,$4,$5)"#,
-            )
-            .bind(id)
-            .bind(company)
-            .bind(c.from_uom_id)
-            .bind(c.to_uom_id)
-            .bind(c.factor)
-            .execute(&self.db_pool)
-            .await;
+            let repo = UomConversionRepository::new(self.db_pool.clone());
+            let r = repo
+                .insert_uom_conversion(
+                    &self.db_pool,
+                    &NewUomConversionRow {
+                        id,
+                        company_id: company,
+                        from_uom_id: c.from_uom_id,
+                        to_uom_id: c.to_uom_id,
+                        factor: c.factor,
+                    },
+                )
+                .await;
             match r {
                 Ok(_) => Ok(id),
                 Err(e) if e.as_database_error().map(|d| d.is_unique_violation()).unwrap_or(false) => {
@@ -421,12 +405,19 @@ impl CatalogWriteService {
         company_scope::with_company_scope(Some(company), async move {
             let id = Uuid::new_v4();
             let at = a.attribute_type.clone().unwrap_or_else(|| "other".to_string());
-            let r = sqlx::query(
-                r#"INSERT INTO catalog.attributes (id, company_id, code, name, attribute_type, status)
-                   VALUES ($1,$2,$3,$4,$5::attribute_type,'active'::catalog_status)"#,
-            )
-            .bind(id).bind(company).bind(&a.code).bind(&a.name).bind(&at)
-            .execute(&self.db_pool).await;
+            let repo = AttributeRepository::new(self.db_pool.clone());
+            let r = repo
+                .insert_attribute(
+                    &self.db_pool,
+                    &NewAttributeRow {
+                        id,
+                        company_id: company,
+                        code: &a.code,
+                        name: &a.name,
+                        attribute_type: &at,
+                    },
+                )
+                .await;
             match r {
                 Ok(_) => Ok(id),
                 Err(e) if Self::is_dup(&e, "code") => Err(CatalogWriteError::DuplicateAttributeCode(a.code)),
@@ -438,18 +429,27 @@ impl CatalogWriteService {
     pub async fn create_attribute_value(&self, v: NewAttributeValue) -> Result<Uuid, CatalogWriteError> {
         let company = v.company_id;
         company_scope::with_company_scope(Some(company), async move {
-            if !self.exists_in("attributes", v.attribute_id, company).await? {
+            let attrs = AttributeRepository::new(self.db_pool.clone());
+            if !attrs.exists_id_in_company(&self.db_pool, v.attribute_id, company).await? {
                 return Err(CatalogWriteError::AttributeNotFound(v.attribute_id));
             }
             let id = Uuid::new_v4();
-            let r = sqlx::query(
-                r#"INSERT INTO catalog.attribute_values
-                    (id, company_id, attribute_id, code, label, label_en, swatch_hex, sort_order, status)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'active'::catalog_status)"#,
-            )
-            .bind(id).bind(company).bind(v.attribute_id).bind(&v.code).bind(&v.label)
-            .bind(&v.label_en).bind(&v.swatch_hex).bind(v.sort_order)
-            .execute(&self.db_pool).await;
+            let repo = AttributeValueRepository::new(self.db_pool.clone());
+            let r = repo
+                .insert_attribute_value(
+                    &self.db_pool,
+                    &NewAttributeValueRow {
+                        id,
+                        company_id: company,
+                        attribute_id: v.attribute_id,
+                        code: &v.code,
+                        label: &v.label,
+                        label_en: v.label_en.as_deref(),
+                        swatch_hex: v.swatch_hex.as_deref(),
+                        sort_order: v.sort_order,
+                    },
+                )
+                .await;
             match r {
                 Ok(_) => Ok(id),
                 Err(e) if Self::is_dup(&e, "code") => Err(CatalogWriteError::DuplicateValueCode(v.code)),
@@ -464,7 +464,8 @@ impl CatalogWriteService {
     pub async fn create_item_variant(&self, v: NewItemVariant) -> Result<Uuid, CatalogWriteError> {
         let company = v.company_id;
         company_scope::with_company_scope(Some(company), async move {
-            if !self.exists_in("items", v.item_id, company).await? {
+            let items = ItemRepository::new(self.db_pool.clone());
+            if !items.exists_id_in_company(&self.db_pool, v.item_id, company).await? {
                 return Err(CatalogWriteError::ItemNotFound(v.item_id));
             }
             if v.options.is_empty() {
@@ -474,30 +475,18 @@ impl CatalogWriteService {
             // Validate options against the registry and collect display labels for the label default.
             // The registry lookups are company-scoped (defense-in-depth on top of RLS) so a cross-tenant
             // collision on attribute code never bleeds into this variant's validation.
+            let attr_values = AttributeValueRepository::new(self.db_pool.clone());
+            let attrs = AttributeRepository::new(self.db_pool.clone());
             let mut labels: Vec<String> = Vec::with_capacity(v.options.len());
             for (attr_code, val_code) in &v.options {
-                let row: Option<(Uuid, String)> = sqlx::query_as(
-                    r#"SELECT av.id, av.label
-                       FROM catalog.attribute_values av
-                       JOIN catalog.attributes a ON a.id = av.attribute_id
-                       WHERE a.code = $1 AND av.code = $2 AND a.company_id = $3 AND av.company_id = $3
-                         AND (a.metadata->>'deleted_at') IS NULL
-                         AND (av.metadata->>'deleted_at') IS NULL"#,
-                )
-                .bind(attr_code)
-                .bind(val_code)
-                .bind(company)
-                .fetch_optional(&self.db_pool)
-                .await?;
+                let row = attr_values
+                    .find_value_with_attribute(&self.db_pool, attr_code, val_code, company)
+                    .await?;
                 match row {
-                    Some((_, label)) => labels.push(label),
+                    Some(r) => labels.push(r.label),
                     None => {
                         // Distinguish unknown axis vs unknown value for a clearer error.
-                        let attr_ok: Option<Uuid> = sqlx::query_scalar(
-                            "SELECT id FROM catalog.attributes \
-                             WHERE code=$1 AND company_id=$2 AND (metadata->>'deleted_at') IS NULL",
-                        )
-                        .bind(attr_code).bind(company).fetch_optional(&self.db_pool).await?;
+                        let attr_ok = attrs.find_id_by_code(&self.db_pool, attr_code, company).await?;
                         return if attr_ok.is_some() {
                             Err(CatalogWriteError::UnknownAttributeValue(format!("{attr_code}={val_code}")))
                         } else {
@@ -515,14 +504,23 @@ impl CatalogWriteService {
             // Bind the company onto this transaction so the RLS WITH CHECK accepts the row
             // (ADR-0008 pattern for hand-written write services managing their own tx).
             company_scope::bind_current_company(&mut tx).await?;
-            let r = sqlx::query(
-                r#"INSERT INTO catalog.item_variants
-                    (id, company_id, item_id, sku, variant_label, options, barcode, is_default, weight_per_unit, status)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'active'::catalog_status)"#,
-            )
-            .bind(id).bind(company).bind(v.item_id).bind(&v.sku).bind(&label).bind(&options_json)
-            .bind(&v.barcode).bind(v.is_default).bind(v.weight_per_unit)
-            .execute(&mut *tx).await;
+            let variants = ItemVariantRepository::new(self.db_pool.clone());
+            let r = variants
+                .insert_variant(
+                    &mut *tx,
+                    &NewItemVariantRow {
+                        id,
+                        company_id: company,
+                        item_id: v.item_id,
+                        sku: &v.sku,
+                        variant_label: &label,
+                        options: &options_json,
+                        barcode: v.barcode.as_deref(),
+                        is_default: v.is_default,
+                        weight_per_unit: v.weight_per_unit,
+                    },
+                )
+                .await;
             if let Err(e) = r {
                 drop(tx);
                 return if Self::is_dup(&e, "barcode") {
@@ -533,8 +531,7 @@ impl CatalogWriteService {
                     Err(e.into())
                 };
             }
-            sqlx::query("UPDATE catalog.items SET has_variants = TRUE WHERE id = $1")
-                .bind(v.item_id).execute(&mut *tx).await?;
+            items.set_has_variants_true(&mut *tx, v.item_id).await?;
             tx.commit().await?;
             Ok(id)
         }).await
@@ -547,40 +544,19 @@ impl CatalogWriteService {
     pub async fn delete_item_variant(&self, variant_id: Uuid) -> Result<(), CatalogWriteError> {
         let company = company_scope::current_company()
             .ok_or(CatalogWriteError::NoCompanyScope)?;
-        let item_id: Option<Uuid> = sqlx::query_scalar(
-            "SELECT item_id FROM catalog.item_variants \
-             WHERE id=$1 AND company_id=$2 AND (metadata->>'deleted_at') IS NULL",
-        )
-        .bind(variant_id)
-        .bind(company)
-        .fetch_optional(&self.db_pool)
-        .await?;
-        let item_id = item_id.ok_or(CatalogWriteError::ItemVariantNotFound(variant_id))?;
+        let variants = ItemVariantRepository::new(self.db_pool.clone());
+        let item_id = variants
+            .find_item_id_for_live(&self.db_pool, variant_id, company)
+            .await?
+            .ok_or(CatalogWriteError::ItemVariantNotFound(variant_id))?;
 
         let mut tx = self.db_pool.begin().await?;
         company_scope::bind_current_company(&mut tx).await?;
-        sqlx::query(
-            "UPDATE catalog.item_variants \
-             SET metadata = jsonb_set(metadata, '{deleted_at}', to_jsonb(now())) \
-             WHERE id=$1 AND company_id=$2",
-        )
-        .bind(variant_id)
-        .bind(company)
-        .execute(&mut *tx)
-        .await?;
-        let remaining: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM catalog.item_variants \
-             WHERE item_id=$1 AND company_id=$2 AND (metadata->>'deleted_at') IS NULL",
-        )
-        .bind(item_id)
-        .bind(company)
-        .fetch_one(&mut *tx)
-        .await?;
+        variants.soft_delete_variant(&mut *tx, variant_id, company).await?;
+        let remaining = variants.count_live_variants(&mut *tx, item_id, company).await?;
         if remaining == 0 {
-            sqlx::query("UPDATE catalog.items SET has_variants = FALSE WHERE id=$1")
-                .bind(item_id)
-                .execute(&mut *tx)
-                .await?;
+            let items = ItemRepository::new(self.db_pool.clone());
+            items.set_has_variants_false(&mut *tx, item_id).await?;
         }
         tx.commit().await?;
         Ok(())
@@ -593,12 +569,20 @@ impl CatalogWriteService {
         company_scope::with_company_scope(Some(company), async move {
             let id = Uuid::new_v4();
             let ut = u.uom_type.clone().unwrap_or_else(|| "count".to_string());
-            let r = sqlx::query(
-                r#"INSERT INTO catalog.uoms (id, company_id, code, name, uom_type, decimal_places, status)
-                   VALUES ($1,$2,$3,$4,$5::uom_type,$6,'active'::catalog_status)"#,
-            )
-            .bind(id).bind(company).bind(&u.code).bind(&u.name).bind(&ut).bind(u.decimal_places)
-            .execute(&self.db_pool).await;
+            let repo = UomRepository::new(self.db_pool.clone());
+            let r = repo
+                .insert_uom(
+                    &self.db_pool,
+                    &NewUomRow {
+                        id,
+                        company_id: company,
+                        code: &u.code,
+                        name: &u.name,
+                        uom_type: &ut,
+                        decimal_places: u.decimal_places,
+                    },
+                )
+                .await;
             match r {
                 Ok(_) => Ok(id),
                 Err(e) if Self::is_dup(&e, "code") => Err(CatalogWriteError::DuplicateUomCode(u.code)),
@@ -612,14 +596,22 @@ impl CatalogWriteService {
         let company = b.company_id;
         company_scope::with_company_scope(Some(company), async move {
             let id = Uuid::new_v4();
-            let r = sqlx::query(
-                r#"INSERT INTO catalog.brands
-                    (id, company_id, code, name, short_description, description, logo_url, sort_order, status)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'active'::catalog_status)"#,
-            )
-            .bind(id).bind(company).bind(&b.code).bind(&b.name).bind(&b.short_description)
-            .bind(&b.description).bind(&b.logo_url).bind(b.sort_order)
-            .execute(&self.db_pool).await;
+            let repo = BrandRepository::new(self.db_pool.clone());
+            let r = repo
+                .insert_brand(
+                    &self.db_pool,
+                    &NewBrandRow {
+                        id,
+                        company_id: company,
+                        code: &b.code,
+                        name: &b.name,
+                        short_description: b.short_description.as_deref(),
+                        description: b.description.as_deref(),
+                        logo_url: b.logo_url.as_deref(),
+                        sort_order: b.sort_order,
+                    },
+                )
+                .await;
             match r {
                 Ok(_) => Ok(id),
                 Err(e) if Self::is_dup(&e, "code") => Err(CatalogWriteError::DuplicateBrandCode(b.code)),

@@ -14,6 +14,19 @@ user_owned:
   # Validated write path + guarded route composition (closes the CRUD-bypass hole).
   - "src/application/service/catalog_write_service.rs"
   - "src/presentation/http/guarded_routes.rs"
+  # Repositories own the hand-written catalog SQL (item/variant lookups, validated inserts,
+  # in-tx variant lifecycle, company-fenced EXISTS probes) orchestrated by catalog_write_service.
+  # Declared here — not renamed with a `_custom` suffix — so the generator skips them wholesale;
+  # this declaration is what makes editing them legitimate. Mirrors the backbone-banking pattern
+  # (exchange_rate_repository.rs, fx_gain_loss_repository.rs).
+  - "src/infrastructure/persistence/item_repository.rs"
+  - "src/infrastructure/persistence/item_group_repository.rs"
+  - "src/infrastructure/persistence/item_variant_repository.rs"
+  - "src/infrastructure/persistence/uom_repository.rs"
+  - "src/infrastructure/persistence/uom_conversion_repository.rs"
+  - "src/infrastructure/persistence/attribute_repository.rs"
+  - "src/infrastructure/persistence/attribute_value_repository.rs"
+  - "src/infrastructure/persistence/brand_repository.rs"
 
   # Behavior tests (the golden cases / oracle) + route-level integrity probes + BDD features.
   - "tests/catalog_golden_cases.rs"

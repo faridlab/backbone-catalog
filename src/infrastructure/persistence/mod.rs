@@ -36,4 +36,15 @@ pub use backbone_orm::repository::{
 
 // Re-export custom persistence types
 // <<< CUSTOM
+// The hand-written catalog SQL's parameter/projection types. Every repository listed here is
+// declared `user_owned` in metaphor.codegen.yaml — see catalog_write_service.rs, which orchestrates
+// them.
+pub use attribute_repository::NewAttributeRow;
+pub use attribute_value_repository::{AttributeValueResolveRow, NewAttributeValueRow};
+pub use brand_repository::NewBrandRow;
+pub use item_repository::{ItemHit, NewItemRow};
+pub use item_group_repository::NewItemGroupRow;
+pub use item_variant_repository::NewItemVariantRow;
+pub use uom_repository::NewUomRow;
+pub use uom_conversion_repository::NewUomConversionRow;
 // END CUSTOM
