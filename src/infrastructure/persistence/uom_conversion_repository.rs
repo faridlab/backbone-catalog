@@ -69,6 +69,67 @@ impl UomConversionRepository {
         .await?;
         Ok(())
     }
+
+    /// Does a live conversion `from_uom → to_uom` exist for this company? (RLS scopes the read;
+    /// also filtered explicitly by `company_id`.)
+    pub async fn pair_exists(
+        &self,
+        pool: &PgPool,
+        company: Uuid,
+        from_uom: Uuid,
+        to_uom: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM catalog.uom_conversions \
+             WHERE company_id=$1 AND from_uom_id=$2 AND to_uom_id=$3 \
+             AND (metadata->>'deleted_at') IS NULL)",
+        )
+        .bind(company)
+        .bind(from_uom)
+        .bind(to_uom)
+        .fetch_one(pool)
+        .await?;
+        Ok(exists)
+    }
+
+    /// Resolve a conversion factor between two units in EITHER direction: the direct row
+    /// (`from_uom → to_uom = factor`) if present, else the inverse (`1/factor`) of the reverse row
+    /// (`to_uom → from_uom`). `None` if no live conversion links the two units for this company.
+    /// UomConversion is stored one-directional; this makes it usable both ways (council finding).
+    pub async fn factor_between(
+        &self,
+        pool: &PgPool,
+        company: Uuid,
+        from_uom: Uuid,
+        to_uom: Uuid,
+    ) -> Result<Option<Decimal>, sqlx::Error> {
+        // Direct: 1 from_uom = factor to_uom.
+        let direct: Option<Decimal> = sqlx::query_scalar(
+            "SELECT factor FROM catalog.uom_conversions \
+             WHERE company_id=$1 AND from_uom_id=$2 AND to_uom_id=$3 \
+             AND (metadata->>'deleted_at') IS NULL",
+        )
+        .bind(company)
+        .bind(from_uom)
+        .bind(to_uom)
+        .fetch_optional(pool)
+        .await?;
+        if let Some(f) = direct {
+            return Ok(Some(f));
+        }
+        // Reverse: a row `to_uom → from_uom = f'` means `1 from_uom = (1/f') to_uom`.
+        let reverse: Option<Decimal> = sqlx::query_scalar(
+            "SELECT factor FROM catalog.uom_conversions \
+             WHERE company_id=$1 AND from_uom_id=$2 AND to_uom_id=$3 \
+             AND (metadata->>'deleted_at') IS NULL",
+        )
+        .bind(company)
+        .bind(to_uom)
+        .bind(from_uom)
+        .fetch_optional(pool)
+        .await?;
+        Ok(reverse.map(|f| Decimal::ONE / f))
+    }
 }
 
 backbone_core::impl_crud_repository!(UomConversionRepository, UomConversion, soft_delete);

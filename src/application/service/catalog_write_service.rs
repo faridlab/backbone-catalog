@@ -383,8 +383,17 @@ impl CatalogWriteService {
             if !uoms.exists_id_in_company(&self.db_pool, c.to_uom_id, company).await? {
                 return Err(CatalogWriteError::UomNotFound(c.to_uom_id));
             }
-            let id = Uuid::new_v4();
             let repo = UomConversionRepository::new(self.db_pool.clone());
+            // A reverse row (to→from) already makes this pair convertible both ways — factor_between
+            // derives the inverse — so reject a redundant/contradictory reverse: one canonical factor
+            // per pair (council domain finding).
+            if repo
+                .pair_exists(&self.db_pool, company, c.to_uom_id, c.from_uom_id)
+                .await?
+            {
+                return Err(CatalogWriteError::DuplicateConversion);
+            }
+            let id = Uuid::new_v4();
             let r = repo
                 .insert_uom_conversion(
                     &self.db_pool,
@@ -405,6 +414,20 @@ impl CatalogWriteService {
                 Err(e) => Err(e.into()),
             }
         }).await
+    }
+
+    /// Look up the conversion factor from `from_uom` to `to_uom` for the caller's company, in EITHER
+    /// direction: the direct row if present, else the inverse (`1/factor`) of the reverse row.
+    /// `None` if no live conversion links the two units. UomConversion is stored one-directional;
+    /// this makes it usable both ways (council domain finding).
+    pub async fn conversion_factor(
+        &self,
+        from_uom: Uuid,
+        to_uom: Uuid,
+    ) -> Result<Option<Decimal>, CatalogWriteError> {
+        let company = company_scope::current_company().ok_or(CatalogWriteError::NoCompanyScope)?;
+        let repo = UomConversionRepository::new(self.db_pool.clone());
+        Ok(repo.factor_between(&self.db_pool, company, from_uom, to_uom).await?)
     }
 
     pub async fn create_attribute(&self, a: NewAttribute) -> Result<Uuid, CatalogWriteError> {

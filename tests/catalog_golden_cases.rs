@@ -227,6 +227,68 @@ async fn item_status_discontinued_is_terminal() {
     .await;
 }
 
+// CGC-UOM1: conversion_factor resolves the direct row AND the inverse of the reverse row
+// (UomConversion is stored one-directional; the lookup makes it usable both ways).
+#[tokio::test]
+async fn uom_conversion_factor_is_bidirectional() {
+    let pool = pool().await;
+    let svc = CatalogWriteService::new(pool.clone());
+    let company = Uuid::new_v4();
+    company_scope::with_company_scope(Some(company), async {
+        let box_id = seed_uom(&pool, company, &uq("BOX")).await;
+        let pcs_id = seed_uom(&pool, company, &uq("PCS")).await;
+        // Store one direction only: 1 BOX = 12 PCS.
+        svc.create_uom_conversion(NewUomConversion {
+            company_id: company, from_uom_id: box_id, to_uom_id: pcs_id, factor: Decimal::from(12),
+        })
+        .await
+        .expect("create box->pcs");
+
+        // Direct: BOX -> PCS = 12.
+        assert_eq!(svc.conversion_factor(box_id, pcs_id).await.unwrap(), Some(Decimal::from(12)));
+        // Inverse: PCS -> BOX = 1/12.
+        let inv = svc.conversion_factor(pcs_id, box_id).await.unwrap().expect("inverse present");
+        assert_eq!(inv, Decimal::ONE / Decimal::from(12));
+        // Unlinked unit -> None.
+        let other = seed_uom(&pool, company, &uq("KG")).await;
+        assert_eq!(svc.conversion_factor(box_id, other).await.unwrap(), None);
+    })
+    .await;
+}
+
+// CGC-UOM2: a redundant reverse row is rejected — one canonical factor per pair.
+#[tokio::test]
+async fn uom_conversion_rejects_redundant_reverse() {
+    let pool = pool().await;
+    let svc = CatalogWriteService::new(pool.clone());
+    let company = Uuid::new_v4();
+    company_scope::with_company_scope(Some(company), async {
+        let a = seed_uom(&pool, company, &uq("BOX")).await;
+        let b = seed_uom(&pool, company, &uq("PCS")).await;
+        svc.create_uom_conversion(NewUomConversion {
+            company_id: company, from_uom_id: a, to_uom_id: b, factor: Decimal::from(12),
+        })
+        .await
+        .expect("create a->b");
+
+        // Reverse (b->a) must be rejected: the pair is already convertible via conversion_factor.
+        let err = svc
+            .create_uom_conversion(NewUomConversion {
+                company_id: company,
+                from_uom_id: b,
+                to_uom_id: a,
+                factor: Decimal::ONE / Decimal::from(12),
+            })
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, CatalogWriteError::DuplicateConversion),
+            "redundant reverse must be rejected; got {err:?}"
+        );
+    })
+    .await;
+}
+
 // CGC-4: missing uom
 #[tokio::test]
 async fn item_rejects_missing_uom() {
