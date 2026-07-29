@@ -78,17 +78,17 @@ use sqlx::PgPool;
 /// // let admin = catalog.all_crud_routes();
 /// ```
 pub struct CatalogModule {
-    pub attribute_service: Arc<AttributeService>,
-    pub attribute_value_service: Arc<AttributeValueService>,
-    pub brand_service: Arc<BrandService>,
-    pub item_service: Arc<ItemService>,
-    pub item_group_service: Arc<ItemGroupService>,
-    pub item_variant_service: Arc<ItemVariantService>,
-    pub uom_service: Arc<UomService>,
-    pub uom_conversion_service: Arc<UomConversionService>,
+    pub(crate) attribute_service: Arc<AttributeService>,
+    pub(crate) attribute_value_service: Arc<AttributeValueService>,
+    pub(crate) brand_service: Arc<BrandService>,
+    pub(crate) item_service: Arc<ItemService>,
+    pub(crate) item_group_service: Arc<ItemGroupService>,
+    pub(crate) item_variant_service: Arc<ItemVariantService>,
+    pub(crate) uom_service: Arc<UomService>,
+    pub(crate) uom_conversion_service: Arc<UomConversionService>,
     // <<< CUSTOM
     /// Validated Item/ItemGroup/UomConversion writes (FK existence, usage flags, factor>0).
-    pub catalog_write_service: Arc<CatalogWriteService>,
+    pub(crate) catalog_write_service: Arc<CatalogWriteService>,
     // END CUSTOM
 }
 
