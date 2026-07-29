@@ -31,11 +31,12 @@ pub mod handlers;   // AppState DI container (from_module / builder)
 pub mod routes;     // stateless + stateful route composers over CatalogModule
 pub mod exports;    // public cross-module API surface (DTOs, query service, events)
 // END CUSTOM
-// Re-exports for convenience - Domain entities
-pub use domain::entity::*;
-
-// Re-exports - Infrastructure
-pub use infrastructure::persistence::*;
+// Internal use only — NOT re-exported. The crate root no longer dumps every entity/repository:
+// consumers depend on `catalog::exports` (the DTO/query-service contract) or explicit paths like
+// `catalog::domain::entity::Item`. Contract-seat finding (semver-breaking: catalog::Item etc. no
+// longer resolve at the root). These private `use`s keep build()'s unqualified repository names.
+use domain::entity::*;
+use infrastructure::persistence::*;
 
 // Re-exports - Application services
 pub use application::service::AttributeService;

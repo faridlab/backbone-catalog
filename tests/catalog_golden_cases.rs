@@ -12,9 +12,10 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use backbone_catalog::{
-    CatalogStatus, CatalogWriteError, CatalogWriteService, NewAttribute, NewAttributeValue, NewItem,
+    CatalogWriteError, CatalogWriteService, NewAttribute, NewAttributeValue, NewItem,
     NewItemGroup, NewItemVariant, NewUomConversion,
 };
+use backbone_catalog::domain::entity::CatalogStatus;
 use backbone_orm::company_scope;
 
 async fn pool() -> PgPool {
