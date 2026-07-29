@@ -60,15 +60,22 @@ use sqlx::PgPool;
 
 /// Catalog module configuration
 ///
-/// Use the builder pattern to configure and register this module:
+/// Use the builder pattern to configure and register this module. **For any real
+/// deployment, mount the guarded router** — read-only base + validated writes via
+/// `CatalogWriteService`. The unguarded full-CRUD surface (`all_crud_routes`) is
+/// gated behind the default-off `unguarded` cargo feature, for trusted/admin/seeding
+/// use only.
 ///
 /// ```text
 /// let catalog = CatalogModule::builder()
 ///     .with_database(pool.clone())
 ///     .build()?;
 ///
-/// // Unguarded full CRUD (trusted/admin); compose a guarded router for production.
-/// let router = catalog.all_crud_routes();
+/// // Production: validated writes + read-only base (the default, safe surface).
+/// let router = create_guarded_catalog_routes(&catalog);
+///
+/// // Trusted/admin/seeding only — opt in with `--features unguarded`:
+/// // let admin = catalog.all_crud_routes();
 /// ```
 pub struct CatalogModule {
     pub attribute_service: Arc<AttributeService>,
