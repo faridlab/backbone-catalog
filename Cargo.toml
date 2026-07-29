@@ -61,6 +61,12 @@ prost-types = "0.13"
 
 [features]
 default = []
+# Mounts the UNVALIDATED generic-CRUD composers (CatalogModule::all_crud_routes /
+# CatalogModule::routes, and routes::{create_stateless_routes, get_routes,
+# create_combined_routes, get_routes_with_state}). OFF by default — production
+# consumers must mount create_guarded_catalog_routes (read + validated writes).
+# Enable for trusted/admin/seeding tooling; also kept available under `cfg(test)`.
+unguarded = []
 events = []
 auth = []
 grpc = []

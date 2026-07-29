@@ -96,6 +96,7 @@ impl CatalogModule {
     /// create invalid rows or soft-delete a referenced master out from under its
     /// dependents. Prefer a guarded composition (read + validated writes) for any
     /// real deployment; use this only in trusted/admin/seeding contexts.
+    #[cfg(any(test, feature = "unguarded"))]
     pub fn all_crud_routes(&self) -> Router {
         use presentation::http::{
             create_attribute_routes,
@@ -124,6 +125,7 @@ impl CatalogModule {
     /// mount exposes unguarded writes. Compose a guarded router (read + validated
     /// writes) for production, or call `all_crud_routes()` to opt into the full
     /// unguarded surface explicitly.
+    #[cfg(any(test, feature = "unguarded"))]
     #[deprecated(note = "mounts unvalidated generic CRUD on every entity; compose a guarded router for production, or call all_crud_routes() for the intentional full/unguarded surface")]
     pub fn routes(&self) -> Router {
         self.all_crud_routes()
