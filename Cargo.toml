@@ -54,11 +54,6 @@ thiserror = "1.0"
 config = "0.14"
 serde_yaml = "0.9"
 
-# Protocol Buffers (Generated from Schema-First YAML)
-tonic = "0.12"
-prost = "0.13"
-prost-types = "0.13"
-
 [features]
 default = []
 # Mounts the UNVALIDATED generic-CRUD composers (CatalogModule::all_crud_routes /
@@ -69,12 +64,8 @@ default = []
 unguarded = []
 events = []
 auth = []
-grpc = []
 openapi = []
 validation = []
-
-[build-dependencies]
-tonic-build = "0.12"
 
 [dev-dependencies]
 tempfile = "3.0"
