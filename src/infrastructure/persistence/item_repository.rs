@@ -176,6 +176,36 @@ impl ItemRepository {
         Ok(())
     }
 
+    /// Read an item's current lifecycle status (in-tx; the caller has already bound the company,
+    /// so RLS scopes the lookup — an item in another tenant simply isn't found). Used by the
+    /// validated status-transition path to enforce the CatalogStatus state machine.
+    pub async fn find_status(
+        &self,
+        conn: &mut PgConnection,
+        item_id: Uuid,
+    ) -> Result<Option<crate::domain::entity::CatalogStatus>, sqlx::Error> {
+        Ok(sqlx::query_scalar("SELECT status FROM catalog.items WHERE id = $1")
+            .bind(item_id)
+            .fetch_optional(conn)
+            .await?)
+    }
+
+    /// Set an item's lifecycle status (in-tx; the caller has already bound the company). RLS
+    /// WITH CHECK ensures the write only touches an item owned by the bound tenant.
+    pub async fn set_status(
+        &self,
+        conn: &mut PgConnection,
+        item_id: Uuid,
+        status: crate::domain::entity::CatalogStatus,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE catalog.items SET status = $1 WHERE id = $2")
+            .bind(status)
+            .bind(item_id)
+            .execute(conn)
+            .await?;
+        Ok(())
+    }
+
     /// Flip `has_variants = FALSE` on the item (in-tx; called from the variant-delete tx when no
     /// live variants remain). The caller has already bound the company on `conn`.
     pub async fn set_has_variants_false(

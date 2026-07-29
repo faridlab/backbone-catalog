@@ -20,6 +20,8 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::domain::entity::CatalogStatus;
+
 use std::collections::BTreeMap;
 
 use crate::application::service::catalog_write_service::{
@@ -368,6 +370,38 @@ async fn delete_item_variant(
     }
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ChangeItemStatusBody {
+    status: String,
+}
+
+/// Transition an Item's lifecycle status through the validated write path — enforces the
+/// CatalogStatus state machine (`discontinued` is terminal). Body: `{"status":"inactive"}`.
+async fn change_item_status(
+    State(svc): State<Arc<CatalogWriteService>>,
+    Path(id): Path<Uuid>,
+    Json(b): Json<ChangeItemStatusBody>,
+) -> axum::response::Response {
+    if let Err(e) = require_company() {
+        return err_response(e);
+    }
+    let target = match b.status.parse::<CatalogStatus>() {
+        Ok(s) => s,
+        Err(_) => {
+            return (StatusCode::UNPROCESSABLE_ENTITY, Json(ErrorBody {
+                error: "invalid_status",
+                message: format!("unknown CatalogStatus: {}", b.status),
+            }))
+                .into_response();
+        }
+    };
+    match svc.transition_item_status(id, target).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => err_response(e),
+    }
+}
+
 /// Resolve a scanned barcode/SKU to a sellable item (scan → item, step 1 of the counter journey).
 async fn lookup_item(State(svc): State<Arc<CatalogWriteService>>, Path(code): Path<String>) -> axum::response::Response {
     match svc.lookup_item(&code).await {
@@ -381,6 +415,7 @@ fn create_catalog_write_routes(svc: Arc<CatalogWriteService>) -> Router {
     Router::new()
         .route("/item-groups", post(create_item_group))
         .route("/items", post(create_item))
+        .route("/items/:id/status", post(change_item_status))
         .route("/item-lookup/:code", get(lookup_item))
         .route("/uoms", post(create_uom))
         .route("/brands", post(create_brand))

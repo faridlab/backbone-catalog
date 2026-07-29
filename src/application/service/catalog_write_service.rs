@@ -19,6 +19,8 @@ use rust_decimal::Decimal;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::domain::entity::CatalogStatus;
+
 // Re-export `ItemHit` so the service's public API surface (`application::service::ItemHit`) stays
 // stable now that the type itself lives next to the SQL that produces it.
 pub use crate::infrastructure::persistence::ItemHit;
@@ -45,6 +47,9 @@ pub enum CatalogWriteError {
     BrandNotFound(Uuid),
     ItemNotFound(Uuid),
     ItemVariantNotFound(Uuid),
+    /// A status transition the CatalogStatus state machine does not permit (e.g.
+    /// `discontinued → active` — `discontinued` is terminal). See schema/hooks/catalog.hook.yaml.
+    InvalidStatusTransition { from: CatalogStatus, to: CatalogStatus },
     DuplicateUomCode(String),
     DuplicateBrandCode(String),
     DuplicateAttributeCode(String),
@@ -75,6 +80,7 @@ impl CatalogWriteError {
             CatalogWriteError::BrandNotFound(_) => "brand_not_found",
             CatalogWriteError::ItemNotFound(_) => "item_not_found",
             CatalogWriteError::ItemVariantNotFound(_) => "item_variant_not_found",
+            CatalogWriteError::InvalidStatusTransition { .. } => "invalid_status_transition",
             CatalogWriteError::DuplicateUomCode(_) => "duplicate_uom_code",
             CatalogWriteError::DuplicateBrandCode(_) => "duplicate_brand_code",
             CatalogWriteError::DuplicateAttributeCode(_) => "duplicate_attribute_code",
@@ -115,6 +121,7 @@ impl std::fmt::Display for CatalogWriteError {
             | CatalogWriteError::BrandNotFound(id)
             | CatalogWriteError::ItemNotFound(id)
             | CatalogWriteError::ItemVariantNotFound(id) => write!(f, ": {id}"),
+            CatalogWriteError::InvalidStatusTransition { from, to } => write!(f, ": {from:?} -> {to:?}"),
             _ => Ok(()),
         }
     }
@@ -560,6 +567,42 @@ impl CatalogWriteService {
         }
         tx.commit().await?;
         Ok(())
+    }
+
+    /// Transition an Item's lifecycle status, enforcing the CatalogStatus state machine declared
+    /// in schema/hooks/catalog.hook.yaml (`active ↔ inactive`, `active|inactive → discontinued`;
+    /// `discontinued` is terminal). Company-scoped via the request scope: `current_company()` gates
+    /// the call (401 if unset), and `bind_current_company` scopes the lookup + write through RLS.
+    pub async fn transition_item_status(
+        &self,
+        item_id: Uuid,
+        target: CatalogStatus,
+    ) -> Result<(), CatalogWriteError> {
+        if company_scope::current_company().is_none() {
+            return Err(CatalogWriteError::NoCompanyScope);
+        }
+        let items = ItemRepository::new(self.db_pool.clone());
+        let mut tx = self.db_pool.begin().await?;
+        company_scope::bind_current_company(&mut tx).await?;
+        let current = items
+            .find_status(&mut *tx, item_id)
+            .await?
+            .ok_or(CatalogWriteError::ItemNotFound(item_id))?;
+        if !Self::transition_allowed(current, target) {
+            return Err(CatalogWriteError::InvalidStatusTransition { from: current, to: target });
+        }
+        items.set_status(&mut *tx, item_id, target).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// The CatalogStatus state machine (schema/hooks/catalog.hook.yaml): `discontinued` is terminal.
+    fn transition_allowed(from: CatalogStatus, to: CatalogStatus) -> bool {
+        use CatalogStatus::*;
+        matches!(
+            (from, to),
+            (Active, Inactive) | (Inactive, Active) | (Active, Discontinued) | (Inactive, Discontinued)
+        )
     }
 
     /// Create a Uom (leaf master). Validated create so the guarded surface can mount Uom read-only

@@ -12,7 +12,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use backbone_catalog::{
-    CatalogWriteError, CatalogWriteService, NewAttribute, NewAttributeValue, NewItem,
+    CatalogStatus, CatalogWriteError, CatalogWriteService, NewAttribute, NewAttributeValue, NewItem,
     NewItemGroup, NewItemVariant, NewUomConversion,
 };
 use backbone_orm::company_scope;
@@ -163,6 +163,68 @@ async fn item_rejects_missing_group() {
         let err = svc.create_item(item(company, &uq("SKU"), Uuid::new_v4(), uom)).await.unwrap_err();
         assert!(matches!(err, CatalogWriteError::ItemGroupNotFound(_)));
     }).await;
+}
+
+async fn status_of(pool: &PgPool, id: Uuid) -> String {
+    sqlx::query_scalar("SELECT status::text FROM catalog.items WHERE id=$1")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+// CGC-LC1: the CatalogStatus state machine allows active↔inactive and active→discontinued.
+#[tokio::test]
+async fn item_status_transitions_valid() {
+    let pool = pool().await;
+    let svc = CatalogWriteService::new(pool.clone());
+    let company = Uuid::new_v4();
+    company_scope::with_company_scope(Some(company), async {
+        let gid = svc
+            .create_item_group(NewItemGroup {
+                company_id: company, code: uq("FG"), name: "G".into(), parent_id: None, is_group: false,
+            })
+            .await
+            .unwrap();
+        let uom = seed_uom(&pool, company, &uq("PCS")).await;
+        let id = svc.create_item(item(company, &uq("SKU"), gid, uom)).await.expect("item");
+
+        svc.transition_item_status(id, CatalogStatus::Inactive).await.expect("active->inactive");
+        assert_eq!(status_of(&pool, id).await, "inactive");
+        svc.transition_item_status(id, CatalogStatus::Active).await.expect("inactive->active");
+        assert_eq!(status_of(&pool, id).await, "active");
+        svc.transition_item_status(id, CatalogStatus::Discontinued).await.expect("active->discontinued");
+        assert_eq!(status_of(&pool, id).await, "discontinued");
+    })
+    .await;
+}
+
+// CGC-LC2: `discontinued` is terminal — no transition out (council domain-expert finding).
+#[tokio::test]
+async fn item_status_discontinued_is_terminal() {
+    let pool = pool().await;
+    let svc = CatalogWriteService::new(pool.clone());
+    let company = Uuid::new_v4();
+    company_scope::with_company_scope(Some(company), async {
+        let gid = svc
+            .create_item_group(NewItemGroup {
+                company_id: company, code: uq("FG"), name: "G".into(), parent_id: None, is_group: false,
+            })
+            .await
+            .unwrap();
+        let uom = seed_uom(&pool, company, &uq("PCS")).await;
+        let id = svc.create_item(item(company, &uq("SKU"), gid, uom)).await.expect("item");
+
+        svc.transition_item_status(id, CatalogStatus::Discontinued).await.expect("active->discontinued");
+        let err = svc.transition_item_status(id, CatalogStatus::Active).await.unwrap_err();
+        assert!(
+            matches!(err, CatalogWriteError::InvalidStatusTransition { .. }),
+            "discontinued -> active must be rejected; got {err:?}"
+        );
+        // status unchanged — the rejected transition wrote nothing
+        assert_eq!(status_of(&pool, id).await, "discontinued");
+    })
+    .await;
 }
 
 // CGC-4: missing uom
