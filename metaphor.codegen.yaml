@@ -14,6 +14,17 @@ user_owned:
   # Validated write path + guarded route composition (closes the CRUD-bypass hole).
   - "src/application/service/catalog_write_service.rs"
   - "src/presentation/http/guarded_routes.rs"
+  # Module entrypoints carry hand-written safety gates the generator template does
+  # NOT emit, so they must survive `metaphor schema generate` (verified: regen strips
+  # the cfg attributes otherwise):
+  #   - src/lib.rs        #[cfg(any(test, feature = "unguarded"))] on all_crud_routes / routes
+  #   - src/routes/mod.rs same gate on create_stateless_routes / get_routes /
+  #                      create_combined_routes / get_routes_with_state
+  # Trade-off: adding a NEW entity means manually wiring its service into
+  # CatalogModule (src/lib.rs) and its routes into the composers (src/routes/mod.rs) —
+  # the generator no longer updates these two files for you.
+  - "src/lib.rs"
+  - "src/routes/mod.rs"
   # Repositories own the hand-written catalog SQL (item/variant lookups, validated inserts,
   # in-tx variant lifecycle, company-fenced EXISTS probes) orchestrated by catalog_write_service.
   # Declared here — not renamed with a `_custom` suffix — so the generator skips them wholesale;
@@ -28,10 +39,12 @@ user_owned:
   - "src/infrastructure/persistence/attribute_value_repository.rs"
   - "src/infrastructure/persistence/brand_repository.rs"
 
-  # Behavior tests (the golden cases / oracle) + route-level integrity probes + BDD features.
+  # Behavior tests (the golden cases / oracle) + route-level integrity probes + BDD features
+  # + codegen-invariant guards (hand-written safety gates that regen would otherwise strip).
   - "tests/catalog_golden_cases.rs"
   - "tests/item_lookup.rs"
   - "tests/integrity_probes.rs"
+  - "tests/codegen_invariants.rs"
   - "tests/features/**"
 
   # Hand-authored module documentation.
