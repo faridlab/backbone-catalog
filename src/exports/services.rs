@@ -5,8 +5,6 @@
 //! These services provide the public API for other modules.
 //! They only expose read operations - writes go through events.
 
-use std::sync::Arc;
-
 use anyhow::Result;
 use async_trait::async_trait;
 use uuid::Uuid;
@@ -95,21 +93,6 @@ pub trait CatalogQueryService: Send + Sync {
     /// Check if UomConversion exists
     async fn uom_conversion_exists(&self, id: UomConversionId) -> Result<bool>;
 
-}
-
-// ============================================================================
-// QUERY SERVICE IMPLEMENTATION
-// ============================================================================
-
-/// Default implementation of CatalogQueryService
-pub struct CatalogQueryServiceImpl<R> {
-    repository: Arc<R>,
-}
-
-impl<R> CatalogQueryServiceImpl<R> {
-    pub fn new(repository: Arc<R>) -> Self {
-        Self { repository }
-    }
 }
 
 // ============================================================================
