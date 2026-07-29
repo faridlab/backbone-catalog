@@ -25,7 +25,11 @@ config:
       - graphql
       - grpc
       - proto
-      - openapi
+      # Dead scaffolding cut at the source (council YAGNI rec #4). Requires a metaphor-schema
+      # generator that omits `pub mod <gen>;` when a generator is disabled, else the declaration
+      # dangles (E0583) — fixed in metaphor-plugin-schema src/generators/module.rs.
+      - specification        # 8 empty *_specification.rs — no entity defines predicates
+      - events               # no-op publishers/handlers — nothing publishes; exports/events.rs is self-contained
 
 # Reuse sapiens for user identity (actors) — logical refs, no DB constraint.
 external_imports:
