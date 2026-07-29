@@ -289,6 +289,19 @@ async fn uom_conversion_rejects_redundant_reverse() {
     .await;
 }
 
+// C3: the RLS guard refuses a superuser connection (superusers bypass FORCE ROW LEVEL SECURITY).
+// The dev/test DB connects as `postgres` (superuser), so the guard must reject here — proving it
+// catches the exact failure mode the council's C3 finding is about.
+#[tokio::test]
+async fn rls_guard_rejects_superuser_connection() {
+    let pool = pool().await;
+    let err = backbone_catalog::assert_rls_enforced(&pool).await.unwrap_err();
+    assert!(
+        err.to_string().to_lowercase().contains("superuser"),
+        "guard should name the superuser problem; got: {err}"
+    );
+}
+
 // CGC-4: missing uom
 #[tokio::test]
 async fn item_rejects_missing_uom() {
