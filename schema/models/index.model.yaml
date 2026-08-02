@@ -30,6 +30,9 @@ config:
       # dangles (E0583) — fixed in metaphor-plugin-schema src/generators/module.rs.
       - specification        # 8 empty *_specification.rs — no entity defines predicates
       - events               # no-op publishers/handlers — nothing publishes; exports/events.rs is self-contained
+    # catalog wires the optional per-entity layers (auth/bulk_operations/usecases) + the
+    # routes/handlers composition in application/mod.rs + lib.rs — opt them in at the source.
+    layers: true
     # The RLS fence is hand-authored in migrations/20260722000001_tenant_scope_company_rls (with a
     # fail-loud stray check) — suppress the generated `<ts>_enable_company_rls` duplicate.
     rls_migration: false
