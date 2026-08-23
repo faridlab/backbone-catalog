@@ -8,6 +8,7 @@
 //! Thin newtype over `backbone_orm::GenericCrudRepository<Brand, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
+use backbone_orm::company_scope;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -59,39 +60,44 @@ impl BrandRepository {
         id: Uuid,
         company: Uuid,
     ) -> Result<bool, sqlx::Error> {
-        let found: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM catalog.brands \
-             WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+        let found: Option<Uuid> = company_scope::fetch_optional_scalar_scoped(
+            pool,
+            sqlx::query_scalar(
+                "SELECT id FROM catalog.brands \
+                 WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+            )
+            .bind(id)
+            .bind(company),
         )
-        .bind(id)
-        .bind(company)
-        .fetch_optional(pool)
         .await?;
         Ok(found.is_some())
     }
 
-    /// Insert a validated brand row on the pool. The caller has already bound the company scope via
-    /// `with_company_scope`. Unique-constraint errors propagate as `sqlx::Error` so the service can
-    /// disambiguate code duplicates.
+    /// Insert a validated brand row. The statement runs through the `company_scope` execute helper,
+    /// which binds `app.company_id` so the RLS `WITH CHECK` on `catalog.brands` accepts the row.
+    /// Unique-constraint errors propagate as `sqlx::Error` so the service can disambiguate code
+    /// duplicates.
     pub async fn insert_brand(
         &self,
         pool: &PgPool,
         r: &NewBrandRow<'_>,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            r#"INSERT INTO catalog.brands
-                (id, company_id, code, name, short_description, description, logo_url, sort_order, status)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'active'::catalog_status)"#,
+        company_scope::execute_scoped(
+            pool,
+            sqlx::query(
+                r#"INSERT INTO catalog.brands
+                    (id, company_id, code, name, short_description, description, logo_url, sort_order, status)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'active'::catalog_status)"#,
+            )
+            .bind(r.id)
+            .bind(r.company_id)
+            .bind(r.code)
+            .bind(r.name)
+            .bind(r.short_description)
+            .bind(r.description)
+            .bind(r.logo_url)
+            .bind(r.sort_order),
         )
-        .bind(r.id)
-        .bind(r.company_id)
-        .bind(r.code)
-        .bind(r.name)
-        .bind(r.short_description)
-        .bind(r.description)
-        .bind(r.logo_url)
-        .bind(r.sort_order)
-        .execute(pool)
         .await?;
         Ok(())
     }

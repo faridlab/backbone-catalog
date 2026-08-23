@@ -8,6 +8,7 @@
 //! Thin newtype over `backbone_orm::GenericCrudRepository<AttributeValue, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
+use backbone_orm::company_scope;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -71,44 +72,49 @@ impl AttributeValueRepository {
         val_code: &str,
         company: Uuid,
     ) -> Result<Option<AttributeValueResolveRow>, sqlx::Error> {
-        let row: Option<(Uuid, String)> = sqlx::query_as(
-            r#"SELECT av.id, av.label
-               FROM catalog.attribute_values av
-               JOIN catalog.attributes a ON a.id = av.attribute_id
-               WHERE a.code = $1 AND av.code = $2 AND a.company_id = $3 AND av.company_id = $3
-                 AND (a.metadata->>'deleted_at') IS NULL
-                 AND (av.metadata->>'deleted_at') IS NULL"#,
+        let row: Option<(Uuid, String)> = company_scope::fetch_optional_scoped(
+            pool,
+            sqlx::query_as(
+                r#"SELECT av.id, av.label
+                   FROM catalog.attribute_values av
+                   JOIN catalog.attributes a ON a.id = av.attribute_id
+                   WHERE a.code = $1 AND av.code = $2 AND a.company_id = $3 AND av.company_id = $3
+                     AND (a.metadata->>'deleted_at') IS NULL
+                     AND (av.metadata->>'deleted_at') IS NULL"#,
+            )
+            .bind(attr_code)
+            .bind(val_code)
+            .bind(company),
         )
-        .bind(attr_code)
-        .bind(val_code)
-        .bind(company)
-        .fetch_optional(pool)
         .await?;
         Ok(row.map(|(id, label)| AttributeValueResolveRow { id, label }))
     }
 
-    /// Insert a validated attribute-value row on the pool. The caller has already bound the company
-    /// scope via `with_company_scope`. Unique-constraint errors propagate as `sqlx::Error` so the
-    /// service can disambiguate code duplicates.
+    /// Insert a validated attribute-value row. The statement runs through the `company_scope`
+    /// execute helper, which binds `app.company_id` so the RLS `WITH CHECK` on
+    /// `catalog.attribute_values` accepts the row. Unique-constraint errors propagate as
+    /// `sqlx::Error` so the service can disambiguate code duplicates.
     pub async fn insert_attribute_value(
         &self,
         pool: &PgPool,
         r: &NewAttributeValueRow<'_>,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            r#"INSERT INTO catalog.attribute_values
-                (id, company_id, attribute_id, code, label, label_en, swatch_hex, sort_order, status)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'active'::catalog_status)"#,
+        company_scope::execute_scoped(
+            pool,
+            sqlx::query(
+                r#"INSERT INTO catalog.attribute_values
+                    (id, company_id, attribute_id, code, label, label_en, swatch_hex, sort_order, status)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'active'::catalog_status)"#,
+            )
+            .bind(r.id)
+            .bind(r.company_id)
+            .bind(r.attribute_id)
+            .bind(r.code)
+            .bind(r.label)
+            .bind(r.label_en)
+            .bind(r.swatch_hex)
+            .bind(r.sort_order),
         )
-        .bind(r.id)
-        .bind(r.company_id)
-        .bind(r.attribute_id)
-        .bind(r.code)
-        .bind(r.label)
-        .bind(r.label_en)
-        .bind(r.swatch_hex)
-        .bind(r.sort_order)
-        .execute(pool)
         .await?;
         Ok(())
     }

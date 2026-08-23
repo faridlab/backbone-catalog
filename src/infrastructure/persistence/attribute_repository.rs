@@ -8,6 +8,7 @@
 //! Thin newtype over `backbone_orm::GenericCrudRepository<Attribute, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
+use backbone_orm::company_scope;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -56,13 +57,15 @@ impl AttributeRepository {
         id: Uuid,
         company: Uuid,
     ) -> Result<bool, sqlx::Error> {
-        let found: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM catalog.attributes \
-             WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+        let found: Option<Uuid> = company_scope::fetch_optional_scalar_scoped(
+            pool,
+            sqlx::query_scalar(
+                "SELECT id FROM catalog.attributes \
+                 WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+            )
+            .bind(id)
+            .bind(company),
         )
-        .bind(id)
-        .bind(company)
-        .fetch_optional(pool)
         .await?;
         Ok(found.is_some())
     }
@@ -75,35 +78,40 @@ impl AttributeRepository {
         code: &str,
         company: Uuid,
     ) -> Result<Option<Uuid>, sqlx::Error> {
-        let id: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM catalog.attributes \
-             WHERE code=$1 AND company_id=$2 AND (metadata->>'deleted_at') IS NULL",
+        let id: Option<Uuid> = company_scope::fetch_optional_scalar_scoped(
+            pool,
+            sqlx::query_scalar(
+                "SELECT id FROM catalog.attributes \
+                 WHERE code=$1 AND company_id=$2 AND (metadata->>'deleted_at') IS NULL",
+            )
+            .bind(code)
+            .bind(company),
         )
-        .bind(code)
-        .bind(company)
-        .fetch_optional(pool)
         .await?;
         Ok(id)
     }
 
-    /// Insert a validated attribute row on the pool. The caller has already bound the company scope
-    /// via `with_company_scope`. Unique-constraint errors propagate as `sqlx::Error` so the service
-    /// can disambiguate code duplicates.
+    /// Insert a validated attribute row. The statement runs through the `company_scope` execute
+    /// helper, which binds `app.company_id` so the RLS `WITH CHECK` on `catalog.attributes`
+    /// accepts the row. Unique-constraint errors propagate as `sqlx::Error` so the service can
+    /// disambiguate code duplicates.
     pub async fn insert_attribute(
         &self,
         pool: &PgPool,
         r: &NewAttributeRow<'_>,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            r#"INSERT INTO catalog.attributes (id, company_id, code, name, attribute_type, status)
-               VALUES ($1,$2,$3,$4,$5::attribute_type,'active'::catalog_status)"#,
+        company_scope::execute_scoped(
+            pool,
+            sqlx::query(
+                r#"INSERT INTO catalog.attributes (id, company_id, code, name, attribute_type, status)
+                   VALUES ($1,$2,$3,$4,$5::attribute_type,'active'::catalog_status)"#,
+            )
+            .bind(r.id)
+            .bind(r.company_id)
+            .bind(r.code)
+            .bind(r.name)
+            .bind(r.attribute_type),
         )
-        .bind(r.id)
-        .bind(r.company_id)
-        .bind(r.code)
-        .bind(r.name)
-        .bind(r.attribute_type)
-        .execute(pool)
         .await?;
         Ok(())
     }

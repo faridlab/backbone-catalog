@@ -8,6 +8,7 @@
 //! Thin newtype over `backbone_orm::GenericCrudRepository<Item, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
+use backbone_orm::company_scope;
 use rust_decimal::Decimal;
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
@@ -87,17 +88,19 @@ impl ItemRepository {
         code: &str,
         company: Option<Uuid>,
     ) -> Result<Option<ItemHit>, sqlx::Error> {
-        let hit = sqlx::query_as::<_, ItemHit>(
-            r#"SELECT id AS item_id, NULL::uuid AS variant_id, item_code, name, barcode, NULL::text AS sku
-               FROM catalog.items
-               WHERE (barcode = $1 OR item_code = $1)
-                 AND ($2::uuid IS NULL OR company_id = $2)
-                 AND (metadata->>'deleted_at') IS NULL
-               LIMIT 1"#,
+        let hit = company_scope::fetch_optional_scoped(
+            pool,
+            sqlx::query_as::<_, ItemHit>(
+                r#"SELECT id AS item_id, NULL::uuid AS variant_id, item_code, name, barcode, NULL::text AS sku
+                   FROM catalog.items
+                   WHERE (barcode = $1 OR item_code = $1)
+                     AND ($2::uuid IS NULL OR company_id = $2)
+                     AND (metadata->>'deleted_at') IS NULL
+                   LIMIT 1"#,
+            )
+            .bind(code)
+            .bind(company),
         )
-        .bind(code)
-        .bind(company)
-        .fetch_optional(pool)
         .await?;
         Ok(hit)
     }
@@ -112,52 +115,57 @@ impl ItemRepository {
         id: Uuid,
         company: Uuid,
     ) -> Result<bool, sqlx::Error> {
-        let found: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM catalog.items \
-             WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+        let found: Option<Uuid> = company_scope::fetch_optional_scalar_scoped(
+            pool,
+            sqlx::query_scalar(
+                "SELECT id FROM catalog.items \
+                 WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+            )
+            .bind(id)
+            .bind(company),
         )
-        .bind(id)
-        .bind(company)
-        .fetch_optional(pool)
         .await?;
         Ok(found.is_some())
     }
 
-    /// Insert a validated item row on the pool. The caller has already bound the company scope via
-    /// `with_company_scope`; the explicit `company_id` in the VALUES list is defense-in-depth on
-    /// top of the RLS fence. Unique-constraint errors propagate as `sqlx::Error` so the service can
-    /// disambiguate barcode vs item_code duplicates.
+    /// Insert a validated item row. The statement runs through the `company_scope` execute helper,
+    /// which binds `app.company_id` so the RLS `WITH CHECK` on `catalog.items` accepts the row;
+    /// the explicit `company_id` in the VALUES list is defense-in-depth on top of the RLS fence.
+    /// Unique-constraint errors propagate as `sqlx::Error` so the service can disambiguate
+    /// barcode vs item_code duplicates.
     pub async fn insert_item(
         &self,
         pool: &PgPool,
         r: &NewItemRow<'_>,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            r#"INSERT INTO catalog.items
-                (id, company_id, item_code, name, description, barcode, brand_id, item_group_id,
-                 default_uom_id, item_type, is_sales_item, is_purchase_item, is_stock_item,
-                 hsn_code, is_taxable, weight_per_unit, tags, data, status)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::item_type,$11,$12,$13,$14,$15,$16,$17,$18,'active'::catalog_status)"#,
+        company_scope::execute_scoped(
+            pool,
+            sqlx::query(
+                r#"INSERT INTO catalog.items
+                    (id, company_id, item_code, name, description, barcode, brand_id, item_group_id,
+                     default_uom_id, item_type, is_sales_item, is_purchase_item, is_stock_item,
+                     hsn_code, is_taxable, weight_per_unit, tags, data, status)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::item_type,$11,$12,$13,$14,$15,$16,$17,$18,'active'::catalog_status)"#,
+            )
+            .bind(r.id)
+            .bind(r.company_id)
+            .bind(r.item_code)
+            .bind(r.name)
+            .bind(r.description)
+            .bind(r.barcode)
+            .bind(r.brand_id)
+            .bind(r.item_group_id)
+            .bind(r.default_uom_id)
+            .bind(r.item_type)
+            .bind(r.is_sales_item)
+            .bind(r.is_purchase_item)
+            .bind(r.is_stock_item)
+            .bind(r.hsn_code)
+            .bind(r.is_taxable)
+            .bind(r.weight_per_unit)
+            .bind(r.tags)
+            .bind(r.data),
         )
-        .bind(r.id)
-        .bind(r.company_id)
-        .bind(r.item_code)
-        .bind(r.name)
-        .bind(r.description)
-        .bind(r.barcode)
-        .bind(r.brand_id)
-        .bind(r.item_group_id)
-        .bind(r.default_uom_id)
-        .bind(r.item_type)
-        .bind(r.is_sales_item)
-        .bind(r.is_purchase_item)
-        .bind(r.is_stock_item)
-        .bind(r.hsn_code)
-        .bind(r.is_taxable)
-        .bind(r.weight_per_unit)
-        .bind(r.tags)
-        .bind(r.data)
-        .execute(pool)
         .await?;
         Ok(())
     }

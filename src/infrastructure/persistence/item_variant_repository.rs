@@ -8,6 +8,7 @@
 //! Thin newtype over `backbone_orm::GenericCrudRepository<ItemVariant, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
+use backbone_orm::company_scope;
 use rust_decimal::Decimal;
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
@@ -63,17 +64,19 @@ impl ItemVariantRepository {
         code: &str,
         company: Option<Uuid>,
     ) -> Result<Option<ItemHit>, sqlx::Error> {
-        let hit = sqlx::query_as::<_, ItemHit>(
-            r#"SELECT v.item_id, v.id AS variant_id, i.item_code, i.name, v.barcode, v.sku
-               FROM catalog.item_variants v JOIN catalog.items i ON i.id = v.item_id
-               WHERE (v.barcode = $1 OR v.sku = $1)
-                 AND ($2::uuid IS NULL OR v.company_id = $2)
-                 AND (v.metadata->>'deleted_at') IS NULL
-               LIMIT 1"#,
+        let hit = company_scope::fetch_optional_scoped(
+            pool,
+            sqlx::query_as::<_, ItemHit>(
+                r#"SELECT v.item_id, v.id AS variant_id, i.item_code, i.name, v.barcode, v.sku
+                   FROM catalog.item_variants v JOIN catalog.items i ON i.id = v.item_id
+                   WHERE (v.barcode = $1 OR v.sku = $1)
+                     AND ($2::uuid IS NULL OR v.company_id = $2)
+                     AND (v.metadata->>'deleted_at') IS NULL
+                   LIMIT 1"#,
+            )
+            .bind(code)
+            .bind(company),
         )
-        .bind(code)
-        .bind(company)
-        .fetch_optional(pool)
         .await?;
         Ok(hit)
     }
@@ -87,13 +90,15 @@ impl ItemVariantRepository {
         variant_id: Uuid,
         company: Uuid,
     ) -> Result<Option<Uuid>, sqlx::Error> {
-        let item_id: Option<Uuid> = sqlx::query_scalar(
-            "SELECT item_id FROM catalog.item_variants \
-             WHERE id=$1 AND company_id=$2 AND (metadata->>'deleted_at') IS NULL",
+        let item_id: Option<Uuid> = company_scope::fetch_optional_scalar_scoped(
+            pool,
+            sqlx::query_scalar(
+                "SELECT item_id FROM catalog.item_variants \
+                 WHERE id=$1 AND company_id=$2 AND (metadata->>'deleted_at') IS NULL",
+            )
+            .bind(variant_id)
+            .bind(company),
         )
-        .bind(variant_id)
-        .bind(company)
-        .fetch_optional(pool)
         .await?;
         Ok(item_id)
     }

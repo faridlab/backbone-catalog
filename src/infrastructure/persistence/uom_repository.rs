@@ -8,6 +8,7 @@
 //! Thin newtype over `backbone_orm::GenericCrudRepository<Uom, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
+use backbone_orm::company_scope;
 use rust_decimal::Decimal;
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
@@ -66,13 +67,15 @@ impl UomRepository {
         id: Uuid,
         company: Uuid,
     ) -> Result<bool, sqlx::Error> {
-        let found: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM catalog.uoms \
-             WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+        let found: Option<Uuid> = company_scope::fetch_optional_scalar_scoped(
+            pool,
+            sqlx::query_scalar(
+                "SELECT id FROM catalog.uoms \
+                 WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+            )
+            .bind(id)
+            .bind(company),
         )
-        .bind(id)
-        .bind(company)
-        .fetch_optional(pool)
         .await?;
         Ok(found.is_some())
     }
@@ -85,41 +88,47 @@ impl UomRepository {
         id: Uuid,
         company: Uuid,
     ) -> Result<Option<Decimal>, sqlx::Error> {
-        let factor: Option<Decimal> = sqlx::query_scalar(
-            "SELECT factor FROM catalog.uoms \
-             WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+        let factor: Option<Decimal> = company_scope::fetch_optional_scalar_scoped(
+            pool,
+            sqlx::query_scalar(
+                "SELECT factor FROM catalog.uoms \
+                 WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+            )
+            .bind(id)
+            .bind(company),
         )
-        .bind(id)
-        .bind(company)
-        .fetch_optional(pool)
         .await?;
         Ok(factor)
     }
 
-    /// Insert a validated UOM row on the pool. The caller has already bound the company scope via
-    /// `with_company_scope`. Unique-constraint errors propagate as `sqlx::Error` so the service can
-    /// disambiguate code duplicates.
+    /// Insert a validated UOM row. The statement runs through the `company_scope` execute helper,
+    /// which binds `app.company_id` (on the request-dedicated connection when the host mounts one,
+    /// else transaction-locally from the ambient company scope) so the RLS `WITH CHECK` on
+    /// `catalog.uoms` accepts the row. Unique-constraint errors propagate as `sqlx::Error` so the
+    /// service can disambiguate code duplicates.
     pub async fn insert_uom(
         &self,
         pool: &PgPool,
         r: &NewUomRow<'_>,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            r#"INSERT INTO catalog.uoms
-                   (id, company_id, code, name, uom_type, decimal_places,
-                    relative_uom_id, relative_factor, factor, status)
-               VALUES ($1,$2,$3,$4,$5::uom_type,$6,$7,$8,$9,'active'::catalog_status)"#,
+        company_scope::execute_scoped(
+            pool,
+            sqlx::query(
+                r#"INSERT INTO catalog.uoms
+                       (id, company_id, code, name, uom_type, decimal_places,
+                        relative_uom_id, relative_factor, factor, status)
+                   VALUES ($1,$2,$3,$4,$5::uom_type,$6,$7,$8,$9,'active'::catalog_status)"#,
+            )
+            .bind(r.id)
+            .bind(r.company_id)
+            .bind(r.code)
+            .bind(r.name)
+            .bind(r.uom_type)
+            .bind(r.decimal_places)
+            .bind(r.relative_uom_id)
+            .bind(r.relative_factor)
+            .bind(r.factor),
         )
-        .bind(r.id)
-        .bind(r.company_id)
-        .bind(r.code)
-        .bind(r.name)
-        .bind(r.uom_type)
-        .bind(r.decimal_places)
-        .bind(r.relative_uom_id)
-        .bind(r.relative_factor)
-        .bind(r.factor)
-        .execute(pool)
         .await?;
         Ok(())
     }
@@ -138,21 +147,23 @@ impl UomRepository {
         company: Uuid,
         uom: Uuid,
     ) -> Result<Option<Vec<UomChainNode>>, sqlx::Error> {
-        let rows: Vec<UomChainNode> = sqlx::query_as(
-            r#"WITH RECURSIVE chain AS (
-                   SELECT id, code, relative_uom_id, relative_factor, factor
-                   FROM catalog.uoms
-                   WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL
-                   UNION
-                   SELECT p.id, p.code, p.relative_uom_id, p.relative_factor, p.factor
-                   FROM catalog.uoms p
-                   JOIN chain ON p.id = chain.relative_uom_id
-               )
-               SELECT id, code, relative_uom_id, relative_factor, factor FROM chain"#,
+        let rows: Vec<UomChainNode> = company_scope::fetch_all_scoped(
+            pool,
+            sqlx::query_as(
+                r#"WITH RECURSIVE chain AS (
+                       SELECT id, code, relative_uom_id, relative_factor, factor
+                       FROM catalog.uoms
+                       WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL
+                       UNION
+                       SELECT p.id, p.code, p.relative_uom_id, p.relative_factor, p.factor
+                       FROM catalog.uoms p
+                       JOIN chain ON p.id = chain.relative_uom_id
+                   )
+                   SELECT id, code, relative_uom_id, relative_factor, factor FROM chain"#,
+            )
+            .bind(uom)
+            .bind(company),
         )
-        .bind(uom)
-        .bind(company)
-        .fetch_all(pool)
         .await?;
         Ok(if rows.is_empty() { None } else { Some(rows) })
     }
