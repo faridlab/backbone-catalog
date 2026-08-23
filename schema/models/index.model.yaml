@@ -15,6 +15,12 @@ version: 2
 schema: catalog
 description: "Canonical product/service identity: Item, ItemGroup, Uom (Indonesia-first)"
 
+# ADR-0014 company fence: every entity here is company-scoped and fenced strict — Item,
+# ItemGroup, Uom, UomConversion, Brand, Attribute, AttributeValue, ItemVariant. No
+# exceptions. The RLS fence itself is hand-authored (see the note on
+# config.generators.rls_migration below); this declaration states the module posture.
+company_fence: strict
+
 config:
   database: postgresql
   soft_delete: true
