@@ -67,7 +67,7 @@ pub struct AttributeValue {
 impl AttributeValue {
     /// Create a builder for AttributeValue
     pub fn builder() -> AttributeValueBuilder {
-        AttributeValueBuilder::default()
+        <AttributeValueBuilder as Default>::default()
     }
 
     /// Create a new AttributeValue with required fields
@@ -361,7 +361,7 @@ impl AttributeValueBuilder {
             swatch_hex: self.swatch_hex,
             icon: self.icon,
             sort_order: self.sort_order.unwrap_or(0),
-            status: self.status.unwrap_or(CatalogStatus::default()),
+            status: self.status.unwrap_or_default(),
             metadata: AuditMetadata::default(),
         })
     }

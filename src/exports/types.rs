@@ -442,6 +442,9 @@ pub struct UomDto {
     pub name: String,
     pub uom_type: UomType,
     pub decimal_places: i32,
+    pub relative_uom_id: Option<Uuid>,
+    pub relative_factor: Option<Decimal>,
+    pub factor: Decimal,
     pub status: CatalogStatus,
     pub metadata: serde_json::Value,
 }

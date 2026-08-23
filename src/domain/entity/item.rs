@@ -81,7 +81,7 @@ pub struct Item {
 impl Item {
     /// Create a builder for Item
     pub fn builder() -> ItemBuilder {
-        ItemBuilder::default()
+        <ItemBuilder as Default>::default()
     }
 
     /// Create a new Item with required fields
@@ -535,7 +535,7 @@ impl ItemBuilder {
             brand_id: self.brand_id,
             item_group_id,
             default_uom_id,
-            item_type: self.item_type.unwrap_or(ItemType::default()),
+            item_type: self.item_type.unwrap_or_default(),
             is_sales_item: self.is_sales_item.unwrap_or(true),
             is_purchase_item: self.is_purchase_item.unwrap_or(true),
             is_stock_item: self.is_stock_item.unwrap_or(true),
@@ -547,7 +547,7 @@ impl ItemBuilder {
             shelf_life_days: self.shelf_life_days,
             tags: self.tags.unwrap_or(serde_json::json!([])),
             data: self.data.unwrap_or(serde_json::json!({})),
-            status: self.status.unwrap_or(CatalogStatus::default()),
+            status: self.status.unwrap_or_default(),
             metadata: AuditMetadata::default(),
         })
     }

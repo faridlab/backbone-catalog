@@ -1,18 +1,27 @@
-//! Validated write path for Item, ItemGroup, and UomConversion — hand-authored (user-owned).
+//! Validated write path for Item, ItemGroup, and the UoM tree — hand-authored (user-owned).
 //!
 //! Closes the CRUD-bypass: the generated 12-endpoint CRUD writes rows through `GenericCrudService`
 //! with NO domain validation, so a well-formed request could create an Item pointing at a
-//! non-existent item group or UOM, an Item that is neither sellable/purchasable/stocked, a
-//! self-referential or non-positive UOM conversion, or an item-group whose parent is missing.
+//! non-existent item group or UOM, an Item that is neither sellable/purchasable/stocked, or an
+//! item-group whose parent is missing.
+//!
+//! Units of measure form parent-store reference trees (ADR-0023): a unit either is a tree root
+//! or points at a reference unit with a positive ratio, and every unit carries a recursive stored
+//! factor to its tree's root that this service re-derives on every tree write. Conversion between
+//! units is application-side math over those stored factors (`convert_quantity`) and fails loudly
+//! with a typed error when the two units live in different trees. The pre-v19 pairwise
+//! conversion-table write path is retired by that rewrite: the `uom_conversions` table and its
+//! read surface remain for legacy data and future item-specific layering, but it is no longer an
+//! input to conversion.
 //!
 //! `CatalogModule` mounts these validated writers via `create_guarded_catalog_routes`.
 //!
 //! All SQL lives in the repository newtypes (`item_repository.rs`, `item_group_repository.rs`,
-//! `item_variant_repository.rs`, `uom_repository.rs`, `uom_conversion_repository.rs`,
-//! `attribute_repository.rs`, `attribute_value_repository.rs`, `brand_repository.rs` — each
-//! declared `user_owned` in `metaphor.codegen.yaml`). This service orchestrates the validated
-//! writes: usage-flag checks, FK existence probes, unique-constraint disambiguation, and the
-//! in-tx variant lifecycle (`has_variants` flag flips + soft-delete).
+//! `item_variant_repository.rs`, `uom_repository.rs`, `attribute_repository.rs`,
+//! `attribute_value_repository.rs`, `brand_repository.rs` — each declared `user_owned` in
+//! `metaphor.codegen.yaml`). This service orchestrates the validated writes: usage-flag checks,
+//! FK existence probes, unique-constraint disambiguation, the in-tx variant lifecycle
+//! (`has_variants` flag flips + soft-delete), and the UoM tree link + factor re-derivation.
 
 use backbone_orm::company_scope;
 use rust_decimal::Decimal;
@@ -20,6 +29,9 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::domain::entity::CatalogStatus;
+use crate::domain::services::uom_tree::{
+    convert_quantity, ConversionRounding, UomChain, UomConversionError,
+};
 
 // Re-export `ItemHit` so the service's public API surface (`application::service::ItemHit`) stays
 // stable now that the type itself lives next to the SQL that produces it.
@@ -27,8 +39,7 @@ pub use crate::infrastructure::persistence::ItemHit;
 use crate::infrastructure::persistence::{
     AttributeRepository, AttributeValueRepository, BrandRepository, ItemGroupRepository,
     ItemRepository, ItemVariantRepository, NewAttributeRow, NewAttributeValueRow, NewBrandRow,
-    NewItemGroupRow, NewItemRow, NewItemVariantRow, NewUomConversionRow, NewUomRow,
-    UomConversionRepository, UomRepository,
+    NewItemGroupRow, NewItemRow, NewItemVariantRow, NewUomRow, UomRepository,
 };
 
 #[derive(Debug)]
@@ -37,11 +48,8 @@ pub enum CatalogWriteError {
     UomNotFound(Uuid),
     ParentNotFound(Uuid),
     NoUsageFlag,
-    SameUom,
-    NonPositiveFactor,
     DuplicateItemCode(String),
     DuplicateBarcode(String),
-    DuplicateConversion,
     // Attributes & variants
     AttributeNotFound(Uuid),
     BrandNotFound(Uuid),
@@ -58,6 +66,17 @@ pub enum CatalogWriteError {
     NoOptions,
     UnknownAttribute(String),
     UnknownAttributeValue(String),
+    /// `relative_factor` was supplied without `relative_uom_id` (or vice versa): the tree
+    /// link shape is exactly "both set" or "both unset" (ADR-0023).
+    RelativeShapeMismatch,
+    /// A tree link ratio of zero or less (the stored factor chain must stay positive).
+    NonPositiveRelativeFactor,
+    /// Re-parenting a unit onto itself or one of its own descendants — that link would
+    /// form a cycle, so no root (and no derivable factor) exists anymore.
+    UomCycle { parent: Uuid },
+    /// A conversion between units of different trees (or over a corrupt tree) failed
+    /// loudly — the typed ADR-0023 failure, never a silent numeric result.
+    Conversion(UomConversionError),
     /// A write path needed the caller's company but the request scope was unset
     /// (missing `with_company_scope` / `with_request_scope` middleware).
     NoCompanyScope,
@@ -71,11 +90,8 @@ impl CatalogWriteError {
             CatalogWriteError::UomNotFound(_) => "uom_not_found",
             CatalogWriteError::ParentNotFound(_) => "parent_not_found",
             CatalogWriteError::NoUsageFlag => "no_usage_flag",
-            CatalogWriteError::SameUom => "same_uom",
-            CatalogWriteError::NonPositiveFactor => "non_positive_factor",
             CatalogWriteError::DuplicateItemCode(_) => "duplicate_item_code",
             CatalogWriteError::DuplicateBarcode(_) => "duplicate_barcode",
-            CatalogWriteError::DuplicateConversion => "duplicate_conversion",
             CatalogWriteError::AttributeNotFound(_) => "attribute_not_found",
             CatalogWriteError::BrandNotFound(_) => "brand_not_found",
             CatalogWriteError::ItemNotFound(_) => "item_not_found",
@@ -89,6 +105,10 @@ impl CatalogWriteError {
             CatalogWriteError::NoOptions => "no_options",
             CatalogWriteError::UnknownAttribute(_) => "unknown_attribute",
             CatalogWriteError::UnknownAttributeValue(_) => "unknown_attribute_value",
+            CatalogWriteError::RelativeShapeMismatch => "relative_shape_mismatch",
+            CatalogWriteError::NonPositiveRelativeFactor => "non_positive_relative_factor",
+            CatalogWriteError::UomCycle { .. } => "uom_cycle",
+            CatalogWriteError::Conversion(e) => e.code(),
             CatalogWriteError::NoCompanyScope => "no_company_scope",
             CatalogWriteError::Db(_) => "internal_error",
         }
@@ -122,6 +142,8 @@ impl std::fmt::Display for CatalogWriteError {
             | CatalogWriteError::ItemNotFound(id)
             | CatalogWriteError::ItemVariantNotFound(id) => write!(f, ": {id}"),
             CatalogWriteError::InvalidStatusTransition { from, to } => write!(f, ": {from:?} -> {to:?}"),
+            CatalogWriteError::UomCycle { parent } => write!(f, ": {parent}"),
+            CatalogWriteError::Conversion(e) => write!(f, ": {e}"),
             _ => Ok(()),
         }
     }
@@ -169,14 +191,6 @@ pub fn is_physical_item_type(item_type: &str) -> bool {
 }
 
 #[derive(Debug, Clone)]
-pub struct NewUomConversion {
-    pub company_id: Uuid,
-    pub from_uom_id: Uuid,
-    pub to_uom_id: Uuid,
-    pub factor: Decimal,
-}
-
-#[derive(Debug, Clone)]
 pub struct NewAttribute {
     pub company_id: Uuid,
     pub code: String,
@@ -195,6 +209,10 @@ pub struct NewAttributeValue {
     pub sort_order: i32,
 }
 
+/// A new unit of measure. Leaving `relative_uom_id`/`relative_factor` unset creates a
+/// tree ROOT; setting exactly one of the two is a shape error (`RelativeShapeMismatch`).
+/// The stored `factor` is derived by the service (parent's factor × relative_factor),
+/// never supplied here.
 #[derive(Debug, Clone)]
 pub struct NewUom {
     pub company_id: Uuid,
@@ -202,6 +220,10 @@ pub struct NewUom {
     pub name: String,
     pub uom_type: Option<String>,
     pub decimal_places: i32,
+    /// Parent (reference) unit — `None` makes this unit a tree root.
+    pub relative_uom_id: Option<Uuid>,
+    /// Ratio to the parent: 1 of the new unit = `relative_factor` of the parent.
+    pub relative_factor: Option<Decimal>,
 }
 
 #[derive(Debug, Clone)]
@@ -364,70 +386,142 @@ impl CatalogWriteService {
         }).await
     }
 
-    pub async fn create_uom_conversion(
-        &self,
-        c: NewUomConversion,
-    ) -> Result<Uuid, CatalogWriteError> {
-        let company = c.company_id;
+    /// Create a Uom (leaf master) on the parent-store tree (ADR-0023). Validated create so
+    /// the guarded surface can mount Uom read-only (generic delete/patch would orphan items
+    /// that FK-point at it — council 2026-07-01). With `relative_uom_id` set the unit becomes
+    /// a child of that reference unit and its stored factor is derived as
+    /// `parent.factor * relative_factor`; without it the unit is a new tree root (factor 1).
+    pub async fn create_uom(&self, u: NewUom) -> Result<Uuid, CatalogWriteError> {
+        let company = u.company_id;
         company_scope::with_company_scope(Some(company), async move {
-            if c.from_uom_id == c.to_uom_id {
-                return Err(CatalogWriteError::SameUom);
-            }
-            if c.factor <= Decimal::ZERO {
-                return Err(CatalogWriteError::NonPositiveFactor);
-            }
-            let uoms = UomRepository::new(self.db_pool.clone());
-            if !uoms.exists_id_in_company(&self.db_pool, c.from_uom_id, company).await? {
-                return Err(CatalogWriteError::UomNotFound(c.from_uom_id));
-            }
-            if !uoms.exists_id_in_company(&self.db_pool, c.to_uom_id, company).await? {
-                return Err(CatalogWriteError::UomNotFound(c.to_uom_id));
-            }
-            let repo = UomConversionRepository::new(self.db_pool.clone());
-            // A reverse row (to→from) already makes this pair convertible both ways — factor_between
-            // derives the inverse — so reject a redundant/contradictory reverse: one canonical factor
-            // per pair (council domain finding).
-            if repo
-                .pair_exists(&self.db_pool, company, c.to_uom_id, c.from_uom_id)
-                .await?
-            {
-                return Err(CatalogWriteError::DuplicateConversion);
-            }
+            let (relative_uom_id, relative_factor, factor) = match (u.relative_uom_id, u.relative_factor) {
+                (None, None) => (None, None, Decimal::ONE),
+                (Some(parent), Some(rf)) => {
+                    if rf <= Decimal::ZERO {
+                        return Err(CatalogWriteError::NonPositiveRelativeFactor);
+                    }
+                    let uoms = UomRepository::new(self.db_pool.clone());
+                    if !uoms.exists_id_in_company(&self.db_pool, parent, company).await? {
+                        return Err(CatalogWriteError::ParentNotFound(parent));
+                    }
+                    // A new unit has no descendants yet, so its stored factor is exactly
+                    // the parent's stored factor scaled by the link ratio.
+                    let parent_factor = uoms
+                        .find_factor(&self.db_pool, parent, company)
+                        .await?
+                        .ok_or(CatalogWriteError::ParentNotFound(parent))?;
+                    (Some(parent), Some(rf), parent_factor * rf)
+                }
+                (Some(_), None) | (None, Some(_)) => {
+                    return Err(CatalogWriteError::RelativeShapeMismatch);
+                }
+            };
             let id = Uuid::new_v4();
+            let ut = u.uom_type.clone().unwrap_or_else(|| "count".to_string());
+            let repo = UomRepository::new(self.db_pool.clone());
             let r = repo
-                .insert_uom_conversion(
+                .insert_uom(
                     &self.db_pool,
-                    &NewUomConversionRow {
+                    &NewUomRow {
                         id,
                         company_id: company,
-                        from_uom_id: c.from_uom_id,
-                        to_uom_id: c.to_uom_id,
-                        factor: c.factor,
+                        code: &u.code,
+                        name: &u.name,
+                        uom_type: &ut,
+                        decimal_places: u.decimal_places,
+                        relative_uom_id,
+                        relative_factor,
+                        factor,
                     },
                 )
                 .await;
             match r {
                 Ok(_) => Ok(id),
-                Err(e) if e.as_database_error().map(|d| d.is_unique_violation()).unwrap_or(false) => {
-                    Err(CatalogWriteError::DuplicateConversion)
-                }
+                Err(e) if Self::is_dup(&e, "code") => Err(CatalogWriteError::DuplicateUomCode(u.code)),
                 Err(e) => Err(e.into()),
             }
         }).await
     }
 
-    /// Look up the conversion factor from `from_uom` to `to_uom` for the caller's company, in EITHER
-    /// direction: the direct row if present, else the inverse (`1/factor`) of the reverse row.
-    /// `None` if no live conversion links the two units. UomConversion is stored one-directional;
-    /// this makes it usable both ways (council domain finding).
-    pub async fn conversion_factor(
+    /// Re-parent a live unit onto a new reference unit (or detach it to become a tree root
+    /// by passing `None`). After the link changes, every stored factor in the affected tree
+    /// is re-derived (the unit's own and all its descendants'). Guards:
+    /// shape (both fields together), positivity, parent existence in the company, and the
+    /// cycle rule — a unit may never point at itself or its own descendant.
+    pub async fn set_uom_relative(
         &self,
+        uom_id: Uuid,
+        relative: Option<(Uuid, Decimal)>,
+    ) -> Result<(), CatalogWriteError> {
+        if company_scope::current_company().is_none() {
+            return Err(CatalogWriteError::NoCompanyScope);
+        }
+        let (relative_uom_id, relative_factor) = match relative {
+            None => (None, None),
+            Some((parent, rf)) => {
+                if rf <= Decimal::ZERO {
+                    return Err(CatalogWriteError::NonPositiveRelativeFactor);
+                }
+                (Some(parent), Some(rf))
+            }
+        };
+        let uoms = UomRepository::new(self.db_pool.clone());
+        let company = company_scope::current_company()
+            .ok_or(CatalogWriteError::NoCompanyScope)?;
+        // Pre-validation reads run on the pool before the transaction opens; the mutation
+        // and the factor re-derivation below share one committed unit of work.
+        if !uoms.exists_id_in_company(&self.db_pool, uom_id, company).await? {
+            return Err(CatalogWriteError::UomNotFound(uom_id));
+        }
+        let mut tx = self.db_pool.begin().await?;
+        company_scope::bind_current_company(&mut tx).await?;
+        if let Some(parent) = relative_uom_id {
+            if !uoms.exists_id_in_company(&self.db_pool, parent, company).await? {
+                return Err(CatalogWriteError::ParentNotFound(parent));
+            }
+            // The cycle rule: linking at yourself or any descendant would leave the
+            // subtree with no root — fail loudly before touching any row.
+            if uoms
+                .is_self_or_descendant(&mut *tx, company, uom_id, parent)
+                .await?
+            {
+                return Err(CatalogWriteError::UomCycle { parent });
+            }
+        }
+        uoms.set_relative(&mut *tx, company, uom_id, relative_uom_id, relative_factor)
+            .await?;
+        // Re-derive the stored factors for this unit and its subtree. The function also
+        // raises on unreachable rows (cycle/dangling) as the storage-side backstop.
+        uoms.recompute_factors(&mut *tx).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Convert `qty` from one unit to another over the parent-store tree (ADR-0023).
+    ///
+    /// Application-side math over the stored factors: `qty * factor_from / factor_to`,
+    /// with the rounding policy declared by the caller. Units in different trees fail
+    /// LOUDLY with a typed error naming both trees — never a silent numeric result.
+    pub async fn convert_quantity(
+        &self,
+        qty: Decimal,
         from_uom: Uuid,
         to_uom: Uuid,
-    ) -> Result<Option<Decimal>, CatalogWriteError> {
+        rounding: ConversionRounding,
+    ) -> Result<Decimal, CatalogWriteError> {
         let company = company_scope::current_company().ok_or(CatalogWriteError::NoCompanyScope)?;
-        let repo = UomConversionRepository::new(self.db_pool.clone());
-        Ok(repo.factor_between(&self.db_pool, company, from_uom, to_uom).await?)
+        let uoms = UomRepository::new(self.db_pool.clone());
+        let from_rows = uoms
+            .load_tree_chain(&self.db_pool, company, from_uom)
+            .await?
+            .ok_or(CatalogWriteError::UomNotFound(from_uom))?;
+        let to_rows = uoms
+            .load_tree_chain(&self.db_pool, company, to_uom)
+            .await?
+            .ok_or(CatalogWriteError::UomNotFound(to_uom))?;
+        let from = UomChain::from_rows(from_uom, from_rows).map_err(CatalogWriteError::Conversion)?;
+        let to = UomChain::from_rows(to_uom, to_rows).map_err(CatalogWriteError::Conversion)?;
+        convert_quantity(qty, &from, &to, rounding).map_err(CatalogWriteError::Conversion)
     }
 
     pub async fn create_attribute(&self, a: NewAttribute) -> Result<Uuid, CatalogWriteError> {
@@ -626,35 +720,6 @@ impl CatalogWriteService {
             (from, to),
             (Active, Inactive) | (Inactive, Active) | (Active, Discontinued) | (Inactive, Discontinued)
         )
-    }
-
-    /// Create a Uom (leaf master). Validated create so the guarded surface can mount Uom read-only
-    /// (generic delete/patch would orphan items that FK-point at it — council 2026-07-01).
-    pub async fn create_uom(&self, u: NewUom) -> Result<Uuid, CatalogWriteError> {
-        let company = u.company_id;
-        company_scope::with_company_scope(Some(company), async move {
-            let id = Uuid::new_v4();
-            let ut = u.uom_type.clone().unwrap_or_else(|| "count".to_string());
-            let repo = UomRepository::new(self.db_pool.clone());
-            let r = repo
-                .insert_uom(
-                    &self.db_pool,
-                    &NewUomRow {
-                        id,
-                        company_id: company,
-                        code: &u.code,
-                        name: &u.name,
-                        uom_type: &ut,
-                        decimal_places: u.decimal_places,
-                    },
-                )
-                .await;
-            match r {
-                Ok(_) => Ok(id),
-                Err(e) if Self::is_dup(&e, "code") => Err(CatalogWriteError::DuplicateUomCode(u.code)),
-                Err(e) => Err(e.into()),
-            }
-        }).await
     }
 
     /// Create a Brand (leaf master). Validated create — same rationale as `create_uom`.

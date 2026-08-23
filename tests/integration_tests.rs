@@ -121,4 +121,3 @@ async fn test_uom_conversion_api() {
         panic!("{} tests failed", failed.len());
     }
 }
-

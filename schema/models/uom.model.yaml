@@ -2,13 +2,16 @@
 # Domain: Catalog
 # Entity: Uom (Unit of Measure)
 # Description: A unit in which items are counted/weighed/measured (satuan). E.g. PCS, KG, BOX,
-# LITER. Conversions between units are held in UomConversion.
+# LITER. Units form parent-store reference trees (ADR-0023): each non-root unit points at a
+# reference (parent) unit via relative_uom_id with a relative_factor ratio, and carries a
+# recursive stored `factor` to its tree's root. Conversion between two units is application-side
+# math over these stored factors and FAILS LOUDLY when the units live in different trees.
 # =============================================================================
 
 models:
   - name: Uom
     collection: uoms
-    description: "Unit of measure (satuan) for items"
+    description: "Unit of measure (satuan) for items; parent-store reference tree per ADR-0023"
 
     fields:
       id:
@@ -43,6 +46,26 @@ models:
         attributes: ["@default(0)", "@min(0)", "@max(6)"]
         description: "Allowed fractional precision (0 = whole units only)"
 
+      # ADR-0023 parent-store tree. Units form reference trees via relative_uom_id
+      # (NULL = tree root); the pre-v19 category shape is intentionally NOT ported.
+      # relative_factor is the per-link ratio; factor is the recursive STORED effective
+      # factor to the tree's root, re-derived on every tree write — callers never
+      # hand-write it (hand-rolled factor updates are the lint target per ADR-0023).
+      relative_uom_id:
+        type: uuid?
+        attributes: ["@foreign_key(Uom.id)"]
+        description: "Reference (parent) unit this unit is defined against — NULL = tree root"
+
+      relative_factor:
+        type: decimal?
+        attributes: ["@precision(24,12)", "@positive"]
+        description: "Ratio to the parent unit: 1 of this unit = relative_factor of the parent unit (required iff relative_uom_id is set)"
+
+      factor:
+        type: decimal
+        attributes: ["@precision(24,12)", "@positive", "@default(1)"]
+        description: "Recursive stored effective factor to the tree root (1 of this unit = factor of the root unit; derived, 1 for a root)"
+
       status:
         type: CatalogStatus
         attributes: ["@default(active)"]
@@ -53,6 +76,19 @@ models:
         attributes: ["@audit_metadata"]
         description: "Audit metadata (created_at, updated_at, deleted_at, created_by, updated_by, deleted_by)"
 
+    relations:
+      relative_uom:
+        type: Uom?
+        attributes: ["@one", "@foreign_key(relative_uom_id)"]
+        description: "Reference (parent) unit"
+        inverse: relative_children
+
+      relative_children:
+        type: Uom[]
+        attributes: ["@one_to_many"]
+        description: "Units defined directly against this unit"
+        inverse: relative_uom
+
     indexes:
       - type: unique
         fields: [company_id, code]
@@ -61,6 +97,8 @@ models:
         fields: [company_id, status]
       - type: index
         fields: [company_id]
+      - type: index
+        fields: [company_id, relative_uom_id]
 
 # =============================================================================
 # Enums

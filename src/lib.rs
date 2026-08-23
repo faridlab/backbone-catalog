@@ -51,7 +51,11 @@ pub use application::service::UomConversionService;
 // <<< CUSTOM
 pub use application::service::{
     CatalogWriteError, CatalogWriteService, NewAttribute, NewAttributeValue, NewBrand, NewItem,
-    NewItemGroup, NewItemVariant, NewUom, NewUomConversion,
+    NewItemGroup, NewItemVariant, NewUom,
+};
+// UoM parent-store tree conversion surface (ADR-0023).
+pub use domain::services::uom_tree::{
+    convert_quantity, ConversionRounding, UomChain, UomChainNode, UomConversionError,
 };
 pub use presentation::http::create_guarded_catalog_routes;
 // END CUSTOM
@@ -108,7 +112,8 @@ pub struct CatalogModule {
     pub(crate) uom_service: Arc<UomService>,
     pub(crate) uom_conversion_service: Arc<UomConversionService>,
     // <<< CUSTOM
-    /// Validated Item/ItemGroup/UomConversion writes (FK existence, usage flags, factor>0).
+    /// Validated Item/ItemGroup/UoM-tree writes (FK existence, usage flags, tree links,
+    /// stored-factor re-derivation).
     pub(crate) catalog_write_service: Arc<CatalogWriteService>,
     // END CUSTOM
 }

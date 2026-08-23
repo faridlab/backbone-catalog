@@ -2,15 +2,18 @@
 //!
 //! Hand-authored (user-owned; see `metaphor.codegen.yaml`). Closes the CRUD-bypass: the generated
 //! `routes()` exposes full mutable CRUD on every entity, backed by generic services with NO domain
-//! validation. That lets a caller create an Item pointing at a missing item-group/UOM, an Item with
-//! no usage flag, or a self-referential/non-positive UOM conversion — corrupting the product
-//! identity every downstream module projects.
+//! validation. That lets a caller create an Item pointing at a missing item-group/UOM or an Item
+//! with no usage flag — corrupting the product identity every downstream module projects.
 //!
 //! Guarded surface:
-//!   - **Item / ItemGroup / UomConversion**: READ + **validated create** via `CatalogWriteService`.
+//!   - **Item / ItemGroup**: READ + **validated create** via `CatalogWriteService`.
 //!     Generic update/delete/upsert/bulk are intentionally NOT mounted here.
-//!   - **Uom**: full generic CRUD — a leaf master with no cross-entity invariant (unique code is
-//!     DB-enforced), safe to expose directly.
+//!   - **Uom**: READ + validated create (tree root or child, ADR-0023) + validated re-parent.
+//!     Conversion itself is application-side (`CatalogWriteService::convert_quantity`) and is not
+//!     an HTTP endpoint — consumers compose the service.
+//!   - **UomConversion**: READ only. Conversion is carried by the UoM parent-store tree since the
+//!     ADR-0023 rewrite; the pairwise table stays readable for legacy data and a future
+//!     item-specific layer, with no validated write path.
 
 use std::sync::Arc;
 
@@ -26,7 +29,7 @@ use std::collections::BTreeMap;
 
 use crate::application::service::catalog_write_service::{
     CatalogWriteError, CatalogWriteService, NewAttribute, NewAttributeValue, NewBrand, NewItem,
-    NewItemGroup, NewItemVariant, NewUom, NewUomConversion,
+    NewItemGroup, NewItemVariant, NewUom,
 };
 use crate::CatalogModule;
 
@@ -157,32 +160,6 @@ async fn create_item(
     }
 }
 
-// ── UomConversion ───────────────────────────────────────────────────────────────
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CreateUomConversionBody {
-    from_uom_id: Uuid,
-    to_uom_id: Uuid,
-    factor: Decimal,
-}
-
-async fn create_uom_conversion(
-    State(svc): State<Arc<CatalogWriteService>>,
-    Json(b): Json<CreateUomConversionBody>,
-) -> axum::response::Response {
-    let company = match require_company() { Ok(c) => c, Err(e) => return err_response(e) };
-    match svc
-        .create_uom_conversion(NewUomConversion {
-            company_id: company,
-            from_uom_id: b.from_uom_id, to_uom_id: b.to_uom_id, factor: b.factor,
-        })
-        .await
-    {
-        Ok(id) => (StatusCode::CREATED, Json(IdResponse { id })).into_response(),
-        Err(e) => err_response(e),
-    }
-}
-
 // ── Attribute + AttributeValue ──────────────────────────────────────────────────
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -298,6 +275,13 @@ struct CreateUomBody {
     uom_type: Option<String>,
     #[serde(default)]
     decimal_places: i32,
+    /// Reference (parent) unit — omit to create a tree root (ADR-0023).
+    #[serde(default)]
+    relative_uom_id: Option<Uuid>,
+    /// Ratio to the parent unit (required exactly when relativeUomId is set):
+    /// 1 of the new unit = relativeFactor of the parent unit.
+    #[serde(default)]
+    relative_factor: Option<Decimal>,
 }
 
 async fn create_uom(
@@ -309,10 +293,43 @@ async fn create_uom(
         .create_uom(NewUom {
             company_id: company,
             code: b.code, name: b.name, uom_type: b.uom_type, decimal_places: b.decimal_places,
+            relative_uom_id: b.relative_uom_id, relative_factor: b.relative_factor,
         })
         .await
     {
         Ok(id) => (StatusCode::CREATED, Json(IdResponse { id })).into_response(),
+        Err(e) => err_response(e),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetUomRelativeBody {
+    /// Omit or send null to detach the unit (it becomes a tree root).
+    relative_uom_id: Option<Uuid>,
+    #[serde(default)]
+    relative_factor: Option<Decimal>,
+}
+
+/// Re-parent a unit on the parent-store tree (or detach it to a root with `null`).
+/// The stored factors of the unit and its subtree are re-derived in the same transaction.
+async fn set_uom_relative(
+    State(svc): State<Arc<CatalogWriteService>>,
+    Path(id): Path<Uuid>,
+    Json(b): Json<SetUomRelativeBody>,
+) -> axum::response::Response {
+    if let Err(e) = require_company() {
+        return err_response(e);
+    }
+    let relative = match (b.relative_uom_id, b.relative_factor) {
+        (None, None) => None,
+        (Some(parent), Some(rf)) => Some((parent, rf)),
+        (Some(_), None) | (None, Some(_)) => {
+            return err_response(CatalogWriteError::RelativeShapeMismatch)
+        }
+    };
+    match svc.set_uom_relative(id, relative).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => err_response(e),
     }
 }
@@ -418,8 +435,8 @@ fn create_catalog_write_routes(svc: Arc<CatalogWriteService>) -> Router {
         .route("/items/:id/status", post(change_item_status))
         .route("/item-lookup/:code", get(lookup_item))
         .route("/uoms", post(create_uom))
+        .route("/uoms/:id/relative", post(set_uom_relative))
         .route("/brands", post(create_brand))
-        .route("/uom-conversions", post(create_uom_conversion))
         .route("/attributes", post(create_attribute))
         .route("/attribute-values", post(create_attribute_value))
         .route("/item-variants", post(create_item_variant))

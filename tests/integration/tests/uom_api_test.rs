@@ -29,6 +29,9 @@ impl TestDataGenerator for UomTestData {
             "name": format!("Test {}", Uuid::new_v4().to_string().split('-').next().unwrap()),
             "uom_type": "count",
             "decimal_places": 1,
+            "relative_uom_id": null,
+            "relative_factor": null,
+            "factor": 0,
             "status": "active",
             "metadata": json!({}),
         })
@@ -43,6 +46,9 @@ impl TestDataGenerator for UomTestData {
             "name": format!("Test {}", Uuid::new_v4().to_string().split('-').next().unwrap()),
             "uom_type": "count",
             "decimal_places": 1,
+            "relative_uom_id": null,
+            "relative_factor": null,
+            "factor": 0,
             "status": "active",
             "metadata": json!({}),
         })

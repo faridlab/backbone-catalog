@@ -8,10 +8,10 @@ schema does not encode.
 | Entity | Table | Key identity | Notes |
 |--------|-------|--------------|-------|
 | ItemGroup | `catalog.item_groups` | `code` unique | Category tree (`parent_id`, `is_group`, `level`). |
-| Uom | `catalog.uoms` | `code` unique | `uom_type`, `decimal_places`. |
+| Uom | `catalog.uoms` | `code` unique | `uom_type`, `decimal_places`. Parent-store tree (ADR-0023): `relative_uom_id`/`relative_factor` (`1 child = relative_factor parent`) with a recursive stored `factor` to the tree root; no `category`, no `factor_inv`. |
 | Brand | `catalog.brands` | `code` unique | Merek; `logo_url`, `sort_order`. Leaf master. |
 | Item | `catalog.items` | `item_code` unique; `barcode` unique when present | FK `item_group_id`, `default_uom_id`, `brand_id?`; `item_type` (sell-anything); usage flags; `hsn_code`/`sni`/`is_taxable`; `has_variants`; `tags`/`data` JSONB. |
-| UomConversion | `catalog.uom_conversions` | `(from_uom_id,to_uom_id)` unique | `factor` (`1 from = factor to`), `> 0`. |
+| UomConversion | `catalog.uom_conversions` | `(from_uom_id,to_uom_id)` unique | **Legacy, read-only.** Conversion authority is the UoM tree (ADR-0023); the pairwise table has no validated write path. |
 | Attribute | `catalog.attributes` | `code` unique | Reusable variant axis; `attribute_type`. |
 | AttributeValue | `catalog.attribute_values` | `(attribute_id,code)` unique | Option value; `label`/`label_en`/`swatch_hex`/`icon`/`sort_order`. |
 | ItemVariant | `catalog.item_variants` | `sku` unique; `barcode` unique when present | FK `item_id`; `variant_label`; `options` JSONB `{attr_code:value_code}`; `is_default`. See ADR-003. |
@@ -23,17 +23,23 @@ uniqueness is partial on not-deleted rows.
 
 - **Generated CRUD** — 12 Backbone endpoints per entity (mounted by `CatalogModule::routes()`).
 - **Guarded surface (recommended)** — `create_guarded_catalog_routes(&CatalogModule)`:
-  - Item / ItemGroup / UomConversion: **read + validated create** (`POST /items`,
-    `POST /item-groups`, `POST /uom-conversions`). Generic update/delete/upsert/bulk not mounted.
-  - Uom: full generic CRUD (leaf master; unique code DB-enforced).
+  - Item / ItemGroup: **read + validated create** (`POST /items`, `POST /item-groups`).
+    Generic update/delete/upsert/bulk not mounted.
+  - Uom: **read + validated create** (`POST /uoms`, tree root or child) + validated re-parent
+    (`POST /uoms/:id/relative`, detach with `null`). Conversion itself is **application-side**
+    (`CatalogWriteService::convert_quantity`) with a caller-declared rounding policy — it is
+    deliberately not an HTTP endpoint; cross-tree conversion is a typed error naming both trees.
+  - UomConversion: **read only** (legacy table; the UoM tree is the conversion authority).
 
 ## Validated write rules (R1–R9)
 
 See `schema/hooks/catalog.hook.yaml`. In short: item group + default UOM must exist; item needs at
-least one usage flag; item_code/barcode unique; item-group parent must exist; UOM conversions must
-have distinct UOMs, a positive factor, and existing UOMs. Error codes: `item_group_not_found`,
-`uom_not_found`, `no_usage_flag`, `duplicate_item_code`, `duplicate_barcode`, `parent_not_found`,
-`same_uom`, `non_positive_factor`, `duplicate_conversion` (all `422`).
+least one usage flag; item_code/barcode unique; item-group parent must exist; a UoM tree link must
+set both parent and ratio, the ratio must be positive, the parent must exist in the same company,
+and a unit may never point at itself or its own descendant (cycle). Error codes:
+`item_group_not_found`, `uom_not_found`, `no_usage_flag`, `duplicate_item_code`,
+`duplicate_barcode`, `parent_not_found`, `relative_shape_mismatch`,
+`non_positive_relative_factor`, `uom_cycle`, `cross_tree_conversion` (all `422`).
 
 ## Integration points (logical FKs — no DB FK, no Cargo edge)
 

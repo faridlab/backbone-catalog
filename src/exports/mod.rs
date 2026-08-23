@@ -8,7 +8,7 @@
 //! ## Usage from other modules
 //!
 //! ```text
-//! use catalog::exports::{AttributeDto, CatalogQueryService};
+//! use catalog::exports::{AttributeDto};
 //! ```
 
 mod types;
@@ -51,9 +51,6 @@ pub use events::*;
 /// - `UomConversionDto` - Data transfer object for UomConversion
 /// - `UomConversionSummary` - Summary view of UomConversion
 /// - `UomConversionId` - Type-safe ID wrapper
-///
-/// ## Public Services
-/// - `CatalogQueryService` - Read-only queries
 ///
 /// ## Public Events
 /// - `AttributeCreatedEvent` - Published when Attribute is created

@@ -4146,6 +4146,7 @@ components:
         - name
         - uom_type
         - decimal_places
+        - factor
         - status
         - metadata
       properties:
@@ -4168,6 +4169,15 @@ components:
           format: int32
           minimum: 0
           maximum: 6
+        relative_uom_id:
+          nullable: true
+          type: string
+          format: uuid
+        relative_factor:
+          nullable: true
+          type: string
+        factor:
+          type: string
         status:
           type: string
         metadata:
@@ -4194,6 +4204,7 @@ components:
         - name
         - uom_type
         - decimal_places
+        - factor
         - status
         - metadata
       properties:
@@ -4213,6 +4224,15 @@ components:
           format: int32
           minimum: 0
           maximum: 6
+        relative_uom_id:
+          nullable: true
+          type: string
+          format: uuid
+        relative_factor:
+          nullable: true
+          type: string
+        factor:
+          type: string
         status:
           type: string
         metadata:
@@ -4226,6 +4246,7 @@ components:
         - name
         - uom_type
         - decimal_places
+        - factor
         - status
         - metadata
       properties:
@@ -4245,6 +4266,15 @@ components:
           format: int32
           minimum: 0
           maximum: 6
+        relative_uom_id:
+          nullable: true
+          type: string
+          format: uuid
+        relative_factor:
+          nullable: true
+          type: string
+        factor:
+          type: string
         status:
           type: string
         metadata:
@@ -4269,6 +4299,15 @@ components:
           format: int32
           minimum: 0
           maximum: 6
+        relative_uom_id:
+          nullable: true
+          type: string
+          format: uuid
+        relative_factor:
+          nullable: true
+          type: string
+        factor:
+          type: string
         status:
           type: string
         metadata:

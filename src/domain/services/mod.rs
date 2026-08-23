@@ -21,4 +21,9 @@ pub use uom_domain_policy::UomDomainPolicy;
 pub use uom_conversion_domain_policy::UomConversionDomainPolicy;
 
 // <<< CUSTOM
+// UoM parent-store tree conversion math (ADR-0023) — hand-authored, user-owned
+// (declared in metaphor.codegen.yaml). Declared here inside the CUSTOM block so
+// regeneration preserves the wiring.
+pub mod uom_tree;
+pub use uom_tree::{convert_quantity, ConversionRounding, UomChain, UomChainNode, UomConversionError};
 // END CUSTOM

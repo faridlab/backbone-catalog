@@ -64,7 +64,7 @@ pub struct Attribute {
 impl Attribute {
     /// Create a builder for Attribute
     pub fn builder() -> AttributeBuilder {
-        AttributeBuilder::default()
+        <AttributeBuilder as Default>::default()
     }
 
     /// Create a new Attribute with required fields
@@ -283,8 +283,8 @@ impl AttributeBuilder {
             company_id,
             code,
             name,
-            attribute_type: self.attribute_type.unwrap_or(AttributeType::default()),
-            status: self.status.unwrap_or(CatalogStatus::default()),
+            attribute_type: self.attribute_type.unwrap_or_default(),
+            status: self.status.unwrap_or_default(),
             metadata: AuditMetadata::default(),
         })
     }

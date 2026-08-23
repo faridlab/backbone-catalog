@@ -1,6 +1,7 @@
 //! Council integrity probes — regression tests for the CRUD-bypass hole, at the ROUTE level.
-//! The guarded composition must lock generic Item/ItemGroup/UomConversion writes and enforce
-//! validation on the sanctioned create path. Hits routes via tower oneshot (no live server).
+//! The guarded composition must lock generic Item/ItemGroup/Uom writes and enforce
+//! validation on the sanctioned create path (including the UoM tree link surface, ADR-0023).
+//! Hits routes via tower oneshot (no live server).
 //! Requires DATABASE_URL (defaults to local dev Postgres on :5433).
 //!
 //! ADR-0010 B1: every test uses a fresh random `company` UUID; each seed INSERT carries it
@@ -93,21 +94,21 @@ async fn guarded_item_rejects_missing_group() {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
-// IGC-3: validated conversion rejects factor = 0.
+// IGC-3: validated tree link rejects a zero ratio (factors must stay positive).
 #[tokio::test]
-async fn guarded_conversion_rejects_zero_factor() {
+async fn guarded_tree_link_rejects_zero_ratio() {
     let pool = pool().await;
     let company = Uuid::new_v4();
     let (_g, from) = seed_group_and_uom(&pool, company).await;
     let to = Uuid::new_v4();
     sqlx::query("INSERT INTO catalog.uoms (id, company_id, code, name) VALUES ($1,$2,$3,'T')")
         .bind(to).bind(company).bind(uq("TO")).execute(&pool).await.unwrap();
-    let body = format!(r#"{{"fromUomId":"{from}","toUomId":"{to}","factor":"0"}}"#);
-    let status = post(create_guarded_catalog_routes(&module(&pool).await), company, "/uom-conversions", body).await;
+    let body = format!(r#"{{"relativeUomId":"{from}","relativeFactor":"0"}}"#);
+    let status = post(create_guarded_catalog_routes(&module(&pool).await), company, &format!("/uoms/{to}/relative"), body).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
-// IGC-4: valid item + valid conversion succeed via the guarded surface.
+// IGC-4: valid item + valid tree child unit succeed via the guarded surface.
 #[tokio::test]
 async fn guarded_valid_writes_succeed() {
     let pool = pool().await;
@@ -120,12 +121,24 @@ async fn guarded_valid_writes_succeed() {
     let s1 = post(create_guarded_catalog_routes(&module(&pool).await), company, "/items", item_body).await;
     assert_eq!(s1, StatusCode::CREATED);
 
-    let to = Uuid::new_v4();
-    sqlx::query("INSERT INTO catalog.uoms (id, company_id, code, name) VALUES ($1,$2,$3,'T')")
-        .bind(to).bind(company).bind(uq("TO")).execute(&pool).await.unwrap();
-    let conv_body = format!(r#"{{"fromUomId":"{u}","toUomId":"{to}","factor":"12"}}"#);
-    let s2 = post(create_guarded_catalog_routes(&module(&pool).await), company, "/uom-conversions", conv_body).await;
+    // A child unit defined against the seeded root: 1 new unit = 12 of the root.
+    let child_body = format!(
+        r#"{{"code":"{}","name":"Dozen","relativeUomId":"{u}","relativeFactor":"12"}}"#,
+        uq("DZN")
+    );
+    let s2 = post(create_guarded_catalog_routes(&module(&pool).await), company, "/uoms", child_body).await;
     assert_eq!(s2, StatusCode::CREATED);
+
+    // The stored factor was derived on insert: root factor 1 x ratio 12.
+    let factor: rust_decimal::Decimal = sqlx::query_scalar(
+        "SELECT factor FROM catalog.uoms WHERE company_id = $1 AND relative_uom_id = $2",
+    )
+    .bind(company)
+    .bind(u)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(factor, rust_decimal::Decimal::from(12));
 }
 
 // IGC-5: validated item-variant create rejects an unknown attribute value (route-level).

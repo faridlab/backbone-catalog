@@ -31,6 +31,6 @@ pub use uom_conversion_service::UomConversionService;
 // <<< CUSTOM
 pub use catalog_write_service::{
     CatalogWriteError, CatalogWriteService, NewAttribute, NewAttributeValue, NewBrand, NewItem,
-    NewItemGroup, NewItemVariant, NewUom, NewUomConversion,
+    NewItemGroup, NewItemVariant, NewUom,
 };
 // END CUSTOM

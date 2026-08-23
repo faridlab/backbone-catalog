@@ -66,7 +66,7 @@ pub struct Brand {
 impl Brand {
     /// Create a builder for Brand
     pub fn builder() -> BrandBuilder {
-        BrandBuilder::default()
+        <BrandBuilder as Default>::default()
     }
 
     /// Create a new Brand with required fields
@@ -343,7 +343,7 @@ impl BrandBuilder {
             description: self.description,
             logo_url: self.logo_url,
             sort_order: self.sort_order.unwrap_or(0),
-            status: self.status.unwrap_or(CatalogStatus::default()),
+            status: self.status.unwrap_or_default(),
             metadata: AuditMetadata::default(),
         })
     }

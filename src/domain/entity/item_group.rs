@@ -66,7 +66,7 @@ pub struct ItemGroup {
 impl ItemGroup {
     /// Create a builder for ItemGroup
     pub fn builder() -> ItemGroupBuilder {
-        ItemGroupBuilder::default()
+        <ItemGroupBuilder as Default>::default()
     }
 
     /// Create a new ItemGroup with required fields
@@ -335,7 +335,7 @@ impl ItemGroupBuilder {
             is_group: self.is_group.unwrap_or(false),
             level: self.level.unwrap_or(0),
             sort_order: self.sort_order.unwrap_or(0),
-            status: self.status.unwrap_or(CatalogStatus::default()),
+            status: self.status.unwrap_or_default(),
             metadata: AuditMetadata::default(),
         })
     }

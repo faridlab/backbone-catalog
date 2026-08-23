@@ -61,7 +61,7 @@ pub struct UomConversion {
 impl UomConversion {
     /// Create a builder for UomConversion
     pub fn builder() -> UomConversionBuilder {
-        UomConversionBuilder::default()
+        <UomConversionBuilder as Default>::default()
     }
 
     /// Create a new UomConversion with required fields

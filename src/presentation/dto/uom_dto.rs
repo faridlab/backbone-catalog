@@ -8,6 +8,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
 
 #[cfg(feature = "openapi")]
 #[cfg(feature = "openapi")]
@@ -49,6 +50,11 @@ pub struct CreateUomDto {
     #[cfg_attr(feature = "openapi", schema(example = 42))]
     #[serde(alias = "decimal_places")]
     pub decimal_places: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "relative_uom_id")]
+    pub relative_uom_id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "relative_factor")]
+    pub relative_factor: Option<Decimal>,
+    pub factor: Decimal,
     pub status: CatalogStatus,
 }
 
@@ -80,6 +86,11 @@ pub struct UpdateUomDto {
     #[cfg_attr(feature = "openapi", schema(example = 42))]
     #[serde(alias = "decimal_places")]
     pub decimal_places: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "relative_uom_id")]
+    pub relative_uom_id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "relative_factor")]
+    pub relative_factor: Option<Decimal>,
+    pub factor: Decimal,
     pub status: CatalogStatus,
 }
 
@@ -113,6 +124,12 @@ pub struct PatchUomDto {
     #[cfg_attr(feature = "openapi", schema(example = 42))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "decimal_places")]
     pub decimal_places: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "relative_uom_id")]
+    pub relative_uom_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "relative_factor")]
+    pub relative_factor: Option<Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub factor: Option<Decimal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<CatalogStatus>,
 }
@@ -120,7 +137,7 @@ pub struct PatchUomDto {
 impl PatchUomDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.code.is_some() || self.name.is_some() || self.uom_type.is_some() || self.decimal_places.is_some() || self.status.is_some()
+        self.company_id.is_some() || self.code.is_some() || self.name.is_some() || self.uom_type.is_some() || self.decimal_places.is_some() || self.relative_uom_id.is_some() || self.relative_factor.is_some() || self.factor.is_some() || self.status.is_some()
     }
 }
 
@@ -147,6 +164,9 @@ pub struct UomResponseDto {
     pub uom_type: UomType,
     #[cfg_attr(feature = "openapi", schema(example = 42))]
     pub decimal_places: i32,
+    pub relative_uom_id: Option<Uuid>,
+    pub relative_factor: Option<Decimal>,
+    pub factor: Decimal,
     pub status: CatalogStatus,
     pub metadata: AuditMetadata,
 }
@@ -224,6 +244,9 @@ impl From<Uom> for UomResponseDto {
             name: entity.name,
             uom_type: entity.uom_type,
             decimal_places: entity.decimal_places,
+            relative_uom_id: entity.relative_uom_id,
+            relative_factor: entity.relative_factor,
+            factor: entity.factor,
             status: entity.status,
             metadata: entity.metadata,
         }
@@ -252,6 +275,9 @@ impl From<CreateUomDto> for Uom {
             name: dto.name,
             uom_type: dto.uom_type,
             decimal_places: dto.decimal_places,
+            relative_uom_id: dto.relative_uom_id,
+            relative_factor: dto.relative_factor,
+            factor: dto.factor,
             status: dto.status,
             metadata: AuditMetadata::default(),
         }
@@ -267,6 +293,9 @@ impl From<&Uom> for UomResponseDto {
             name: entity.name.clone(),
             uom_type: entity.uom_type.clone(),
             decimal_places: entity.decimal_places.clone(),
+            relative_uom_id: entity.relative_uom_id.clone(),
+            relative_factor: entity.relative_factor.clone(),
+            factor: entity.factor.clone(),
             status: entity.status.clone(),
             metadata: entity.metadata.clone(),
         }
@@ -286,6 +315,9 @@ impl backbone_core::ApplyUpdateDto<UpdateUomDto> for Uom {
         self.name = dto.name;
         self.uom_type = dto.uom_type;
         self.decimal_places = dto.decimal_places;
+        self.relative_uom_id = dto.relative_uom_id;
+        self.relative_factor = dto.relative_factor;
+        self.factor = dto.factor;
         self.status = dto.status;
         Ok(self)
     }

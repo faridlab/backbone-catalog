@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
+use rust_decimal::Decimal;
 
 use super::UomType;
 use super::CatalogStatus;
@@ -56,6 +57,9 @@ pub struct Uom {
     pub name: String,
     pub uom_type: UomType,
     pub decimal_places: i32,
+    pub relative_uom_id: Option<Uuid>,
+    pub relative_factor: Option<Decimal>,
+    pub factor: Decimal,
     pub status: CatalogStatus,
     #[serde(default)]
     #[sqlx(json)]
@@ -65,11 +69,11 @@ pub struct Uom {
 impl Uom {
     /// Create a builder for Uom
     pub fn builder() -> UomBuilder {
-        UomBuilder::default()
+        <UomBuilder as Default>::default()
     }
 
     /// Create a new Uom with required fields
-    pub fn new(company_id: Uuid, code: String, name: String, uom_type: UomType, decimal_places: i32, status: CatalogStatus) -> Self {
+    pub fn new(company_id: Uuid, code: String, name: String, uom_type: UomType, decimal_places: i32, factor: Decimal, status: CatalogStatus) -> Self {
         Self {
             id: Uuid::new_v4(),
             company_id,
@@ -77,6 +81,9 @@ impl Uom {
             name,
             uom_type,
             decimal_places,
+            relative_uom_id: None,
+            relative_factor: None,
+            factor,
             status,
             metadata: AuditMetadata::default(),
         }
@@ -139,6 +146,22 @@ impl Uom {
 
 
     // ==========================================================
+    // Fluent Setters (with_* for optional fields)
+    // ==========================================================
+
+    /// Set the relative_uom_id field (chainable)
+    pub fn with_relative_uom_id(mut self, value: Uuid) -> Self {
+        self.relative_uom_id = Some(value);
+        self
+    }
+
+    /// Set the relative_factor field (chainable)
+    pub fn with_relative_factor(mut self, value: Decimal) -> Self {
+        self.relative_factor = Some(value);
+        self
+    }
+
+    // ==========================================================
     // Partial Update
     // ==========================================================
 
@@ -160,6 +183,15 @@ impl Uom {
                 }
                 "decimal_places" => {
                     if let Ok(v) = serde_json::from_value(value) { self.decimal_places = v; }
+                }
+                "relative_uom_id" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.relative_uom_id = v; }
+                }
+                "relative_factor" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.relative_factor = v; }
+                }
+                "factor" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.factor = v; }
                 }
                 "status" => {
                     if let Ok(v) = serde_json::from_value(value) { self.status = v; }
@@ -219,6 +251,7 @@ impl backbone_orm::EntityRepoMeta for Uom {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
         m.insert("company_id".to_string(), "uuid".to_string());
+        m.insert("relative_uom_id".to_string(), "uuid".to_string());
         m.insert("uom_type".to_string(), "uom_type".to_string());
         m.insert("status".to_string(), "catalog_status".to_string());
         m
@@ -228,6 +261,9 @@ impl backbone_orm::EntityRepoMeta for Uom {
     }
     fn company_field() -> Option<&'static str> {
         Some("company_id")
+    }
+    fn relations() -> &'static [(&'static str, &'static str, &'static str)] {
+        &[("relativeUom", "uoms", "relativeUomId")]
     }
 }
 
@@ -242,6 +278,9 @@ pub struct UomBuilder {
     name: Option<String>,
     uom_type: Option<UomType>,
     decimal_places: Option<i32>,
+    relative_uom_id: Option<Uuid>,
+    relative_factor: Option<Decimal>,
+    factor: Option<Decimal>,
     status: Option<CatalogStatus>,
 }
 
@@ -276,6 +315,24 @@ impl UomBuilder {
         self
     }
 
+    /// Set the relative_uom_id field (optional)
+    pub fn relative_uom_id(mut self, value: Uuid) -> Self {
+        self.relative_uom_id = Some(value);
+        self
+    }
+
+    /// Set the relative_factor field (optional)
+    pub fn relative_factor(mut self, value: Decimal) -> Self {
+        self.relative_factor = Some(value);
+        self
+    }
+
+    /// Set the factor field (default: `Decimal::from(1)`)
+    pub fn factor(mut self, value: Decimal) -> Self {
+        self.factor = Some(value);
+        self
+    }
+
     /// Set the status field (default: `CatalogStatus::default()`)
     pub fn status(mut self, value: CatalogStatus) -> Self {
         self.status = Some(value);
@@ -295,9 +352,12 @@ impl UomBuilder {
             company_id,
             code,
             name,
-            uom_type: self.uom_type.unwrap_or(UomType::default()),
+            uom_type: self.uom_type.unwrap_or_default(),
             decimal_places: self.decimal_places.unwrap_or(0),
-            status: self.status.unwrap_or(CatalogStatus::default()),
+            relative_uom_id: self.relative_uom_id,
+            relative_factor: self.relative_factor,
+            factor: self.factor.unwrap_or(Decimal::from(1)),
+            status: self.status.unwrap_or_default(),
             metadata: AuditMetadata::default(),
         })
     }

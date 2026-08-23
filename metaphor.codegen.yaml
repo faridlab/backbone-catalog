@@ -47,5 +47,11 @@ user_owned:
   - "tests/codegen_invariants.rs"
   - "tests/features/**"
 
+  # UoM parent-store tree (ADR-0023): domain conversion primitive (chain assembly,
+  # cross-tree typed failure, caller-declared rounding) + its golden-case suite.
+  # The application-side orchestration lives in catalog_write_service (above).
+  - "src/domain/services/uom_tree.rs"
+  - "tests/uom_tree_golden_cases.rs"
+
   # Hand-authored module documentation.
   - "docs/**"

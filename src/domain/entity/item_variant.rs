@@ -68,7 +68,7 @@ pub struct ItemVariant {
 impl ItemVariant {
     /// Create a builder for ItemVariant
     pub fn builder() -> ItemVariantBuilder {
-        ItemVariantBuilder::default()
+        <ItemVariantBuilder as Default>::default()
     }
 
     /// Create a new ItemVariant with required fields
@@ -356,7 +356,7 @@ impl ItemVariantBuilder {
             barcode: self.barcode,
             is_default: self.is_default.unwrap_or(false),
             weight_per_unit: self.weight_per_unit,
-            status: self.status.unwrap_or(CatalogStatus::default()),
+            status: self.status.unwrap_or_default(),
             metadata: AuditMetadata::default(),
         })
     }
