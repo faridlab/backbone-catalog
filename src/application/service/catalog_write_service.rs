@@ -181,6 +181,7 @@ pub struct NewItem {
     pub hsn_code: Option<String>,
     pub is_taxable: bool,
     pub weight_per_unit: Option<Decimal>,
+    pub standard_cost: Option<Decimal>,
     pub tags: Option<serde_json::Value>,
     pub data: Option<serde_json::Value>,
 }
@@ -368,6 +369,7 @@ impl CatalogWriteService {
                         hsn_code: i.hsn_code.as_deref(),
                         is_taxable: i.is_taxable,
                         weight_per_unit: i.weight_per_unit,
+                        standard_cost: i.standard_cost,
                         tags: &tags,
                         data: &data,
                     },

@@ -253,6 +253,7 @@ pub struct ItemDto {
     pub is_taxable: bool,
     pub weight_per_unit: Option<Decimal>,
     pub shelf_life_days: Option<i32>,
+    pub standard_cost: Option<Decimal>,
     pub tags: serde_json::Value,
     pub data: serde_json::Value,
     pub status: CatalogStatus,

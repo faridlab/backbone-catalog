@@ -86,6 +86,8 @@ pub struct CreateItemDto {
     pub weight_per_unit: Option<Decimal>,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "shelf_life_days")]
     pub shelf_life_days: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "standard_cost")]
+    pub standard_cost: Option<Decimal>,
     pub tags: serde_json::Value,
     pub data: serde_json::Value,
     pub status: CatalogStatus,
@@ -155,6 +157,8 @@ pub struct UpdateItemDto {
     pub weight_per_unit: Option<Decimal>,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "shelf_life_days")]
     pub shelf_life_days: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "standard_cost")]
+    pub standard_cost: Option<Decimal>,
     pub tags: serde_json::Value,
     pub data: serde_json::Value,
     pub status: CatalogStatus,
@@ -225,6 +229,8 @@ pub struct PatchItemDto {
     pub weight_per_unit: Option<Decimal>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "shelf_life_days")]
     pub shelf_life_days: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "standard_cost")]
+    pub standard_cost: Option<Decimal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -236,7 +242,7 @@ pub struct PatchItemDto {
 impl PatchItemDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.item_code.is_some() || self.name.is_some() || self.description.is_some() || self.barcode.is_some() || self.brand_id.is_some() || self.item_group_id.is_some() || self.default_uom_id.is_some() || self.item_type.is_some() || self.is_sales_item.is_some() || self.is_purchase_item.is_some() || self.is_stock_item.is_some() || self.has_variants.is_some() || self.hsn_code.is_some() || self.sni.is_some() || self.is_taxable.is_some() || self.weight_per_unit.is_some() || self.shelf_life_days.is_some() || self.tags.is_some() || self.data.is_some() || self.status.is_some()
+        self.company_id.is_some() || self.item_code.is_some() || self.name.is_some() || self.description.is_some() || self.barcode.is_some() || self.brand_id.is_some() || self.item_group_id.is_some() || self.default_uom_id.is_some() || self.item_type.is_some() || self.is_sales_item.is_some() || self.is_purchase_item.is_some() || self.is_stock_item.is_some() || self.has_variants.is_some() || self.hsn_code.is_some() || self.sni.is_some() || self.is_taxable.is_some() || self.weight_per_unit.is_some() || self.shelf_life_days.is_some() || self.standard_cost.is_some() || self.tags.is_some() || self.data.is_some() || self.status.is_some()
     }
 }
 
@@ -282,6 +288,7 @@ pub struct ItemResponseDto {
     pub is_taxable: bool,
     pub weight_per_unit: Option<Decimal>,
     pub shelf_life_days: Option<i32>,
+    pub standard_cost: Option<Decimal>,
     pub tags: serde_json::Value,
     pub data: serde_json::Value,
     pub status: CatalogStatus,
@@ -374,6 +381,7 @@ impl From<Item> for ItemResponseDto {
             is_taxable: entity.is_taxable,
             weight_per_unit: entity.weight_per_unit,
             shelf_life_days: entity.shelf_life_days,
+            standard_cost: entity.standard_cost,
             tags: entity.tags,
             data: entity.data,
             status: entity.status,
@@ -417,6 +425,7 @@ impl From<CreateItemDto> for Item {
             is_taxable: dto.is_taxable,
             weight_per_unit: dto.weight_per_unit,
             shelf_life_days: dto.shelf_life_days,
+            standard_cost: dto.standard_cost,
             tags: dto.tags,
             data: dto.data,
             status: dto.status,
@@ -447,6 +456,7 @@ impl From<&Item> for ItemResponseDto {
             is_taxable: entity.is_taxable.clone(),
             weight_per_unit: entity.weight_per_unit.clone(),
             shelf_life_days: entity.shelf_life_days.clone(),
+            standard_cost: entity.standard_cost.clone(),
             tags: entity.tags.clone(),
             data: entity.data.clone(),
             status: entity.status.clone(),
@@ -481,6 +491,7 @@ impl backbone_core::ApplyUpdateDto<UpdateItemDto> for Item {
         self.is_taxable = dto.is_taxable;
         self.weight_per_unit = dto.weight_per_unit;
         self.shelf_life_days = dto.shelf_life_days;
+        self.standard_cost = dto.standard_cost;
         self.tags = dto.tags;
         self.data = dto.data;
         self.status = dto.status;

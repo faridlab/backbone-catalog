@@ -71,6 +71,7 @@ fn item(company: Uuid, code: &str, group: Uuid, uom: Uuid) -> NewItem {
         hsn_code: None,
         is_taxable: true,
         weight_per_unit: None,
+        standard_cost: None,
         tags: None,
         data: None,
     }
@@ -98,6 +99,39 @@ async fn create_group_and_item() {
         )
         .bind(id).fetch_one(&pool).await.unwrap();
         assert_eq!(row, "physical_good");
+    }).await;
+}
+
+// CGC-3: the standard_cost write→read roundtrip. A supplied cost persists exactly (it is the
+// margin-math anchor selling snapshots at order-confirm time); an absent cost stays NULL —
+// unknown cost, never zero.
+#[tokio::test]
+async fn item_standard_cost_roundtrip() {
+    let pool = pool().await;
+    let svc = CatalogWriteService::new(pool.clone());
+    let company = Uuid::new_v4();
+    company_scope::with_company_scope(Some(company), async {
+        let gid = svc.create_item_group(NewItemGroup {
+            company_id: company,
+            code: uq("FG"), name: "Finished".into(), parent_id: None, is_group: false,
+        }).await.unwrap();
+        let uom = seed_uom(&pool, company, &uq("PCS")).await;
+
+        let mut with_cost = item(company, &uq("SKU"), gid, uom);
+        with_cost.standard_cost = Some(rust_decimal::Decimal::new(123456789012, 6)); // 123456.789012
+        let id_cost = svc.create_item(with_cost).await.expect("item with cost");
+        let stored: Option<String> = sqlx::query_scalar(
+            "SELECT standard_cost::text FROM catalog.items WHERE id=$1",
+        )
+        .bind(id_cost).fetch_one(&pool).await.unwrap();
+        assert_eq!(stored.as_deref(), Some("123456.789012"), "cost must persist exactly");
+
+        let id_null = svc.create_item(item(company, &uq("SKU"), gid, uom)).await.expect("item without cost");
+        let stored_null: Option<String> = sqlx::query_scalar(
+            "SELECT standard_cost::text FROM catalog.items WHERE id=$1",
+        )
+        .bind(id_null).fetch_one(&pool).await.unwrap();
+        assert_eq!(stored_null, None, "absent cost must stay NULL, never default to zero");
     }).await;
 }
 

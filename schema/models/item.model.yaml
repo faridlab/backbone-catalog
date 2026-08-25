@@ -3,8 +3,10 @@
 # Entity: Item
 # Description: The canonical product/service identity (barang/jasa). Every context that sells,
 # buys, or stocks references catalog.Item.id and holds its OWN projection (SellableProduct,
-# PurchasableItem, StockItem) — this entity carries identity, classification, unit, and
-# usage flags only. NO prices, NO stock levels, NO tax rules (those live in other modules).
+# PurchasableItem, StockItem) — this entity carries identity, classification, unit, usage
+# flags, and the nullable standard_cost (the single costing anchor for margin math; NULL =
+# cost unknown, never zero). NO prices, NO stock levels, NO tax rules (those live in other
+# modules).
 # =============================================================================
 
 models:
@@ -117,6 +119,16 @@ models:
         type: int?
         attributes: ["@non_negative"]
         description: "Shelf life in days (perishables)"
+
+      # Standard unit cost (interim source for sales-margin compute; W4 refines)
+      # This is a basic unit cost field - no valuation, no derived fields.
+      # selling snapshots this onto order lines at confirm for margin calculation.
+      # NULL = no cost defined → null-margin in selling (Odoo standard_price shape).
+      # NOTE: This lives on Item only, NOT on ItemVariant (W4 refines variant costing).
+      standard_cost:
+        type: decimal?
+        attributes: ["@precision(18,6)", "@non_negative"]
+        description: "Standard unit cost for margin calculation (nullable = cost unknown; never negative; selling snapshots this at order-confirm time)"
 
       # Search tags + a type-specific config bag, so heterogeneous item types (a service's
       # duration, a digital good's license kind, a subscription's period) carry their own bits

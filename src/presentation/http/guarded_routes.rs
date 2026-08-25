@@ -119,6 +119,10 @@ struct CreateItemBody {
     is_taxable: bool,
     #[serde(default)]
     weight_per_unit: Option<Decimal>,
+    /// Standard unit cost for margin math. Absent = NULL = cost unknown (never zero);
+    /// selling snapshots it at order-confirm time.
+    #[serde(default)]
+    standard_cost: Option<Decimal>,
     #[serde(default)]
     tags: Option<serde_json::Value>,
     #[serde(default)]
@@ -150,6 +154,7 @@ async fn create_item(
             hsn_code: b.hsn_code,
             is_taxable: b.is_taxable,
             weight_per_unit: b.weight_per_unit,
+            standard_cost: b.standard_cost,
             tags: b.tags,
             data: b.data,
         })

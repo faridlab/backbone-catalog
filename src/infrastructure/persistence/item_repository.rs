@@ -71,6 +71,7 @@ pub struct NewItemRow<'a> {
     pub hsn_code: Option<&'a str>,
     pub is_taxable: bool,
     pub weight_per_unit: Option<Decimal>,
+    pub standard_cost: Option<Decimal>,
     pub tags: &'a serde_json::Value,
     pub data: &'a serde_json::Value,
 }
@@ -144,8 +145,8 @@ impl ItemRepository {
                 r#"INSERT INTO catalog.items
                     (id, company_id, item_code, name, description, barcode, brand_id, item_group_id,
                      default_uom_id, item_type, is_sales_item, is_purchase_item, is_stock_item,
-                     hsn_code, is_taxable, weight_per_unit, tags, data, status)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::item_type,$11,$12,$13,$14,$15,$16,$17,$18,'active'::catalog_status)"#,
+                     hsn_code, is_taxable, weight_per_unit, standard_cost, tags, data, status)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::item_type,$11,$12,$13,$14,$15,$16,$17,$18,$19,'active'::catalog_status)"#,
             )
             .bind(r.id)
             .bind(r.company_id)
@@ -163,6 +164,7 @@ impl ItemRepository {
             .bind(r.hsn_code)
             .bind(r.is_taxable)
             .bind(r.weight_per_unit)
+            .bind(r.standard_cost)
             .bind(r.tags)
             .bind(r.data),
         )

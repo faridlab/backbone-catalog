@@ -26,7 +26,7 @@ fn new_item(company: Uuid, code: &str, barcode: Option<String>, group: Uuid, uom
         item_code: code.into(), name: "Item".into(), description: None, barcode, brand_id: None,
         item_group_id: group, default_uom_id: uom, item_type: None, is_sales_item: true,
         is_purchase_item: true, is_stock_item: true, hsn_code: None, is_taxable: true,
-        weight_per_unit: None, tags: None, data: None,
+        weight_per_unit: None, standard_cost: None, tags: None, data: None,
     }
 }
 

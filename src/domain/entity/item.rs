@@ -70,6 +70,7 @@ pub struct Item {
     pub is_taxable: bool,
     pub weight_per_unit: Option<Decimal>,
     pub shelf_life_days: Option<i32>,
+    pub standard_cost: Option<Decimal>,
     pub tags: serde_json::Value,
     pub data: serde_json::Value,
     pub status: CatalogStatus,
@@ -106,6 +107,7 @@ impl Item {
             is_taxable,
             weight_per_unit: None,
             shelf_life_days: None,
+            standard_cost: None,
             tags,
             data,
             status,
@@ -215,6 +217,12 @@ impl Item {
         self
     }
 
+    /// Set the standard_cost field (chainable)
+    pub fn with_standard_cost(mut self, value: Decimal) -> Self {
+        self.standard_cost = Some(value);
+        self
+    }
+
     // ==========================================================
     // Partial Update
     // ==========================================================
@@ -276,6 +284,9 @@ impl Item {
                 }
                 "shelf_life_days" => {
                     if let Ok(v) = serde_json::from_value(value) { self.shelf_life_days = v; }
+                }
+                "standard_cost" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.standard_cost = v; }
                 }
                 "tags" => {
                     if let Ok(v) = serde_json::from_value(value) { self.tags = v; }
@@ -383,6 +394,7 @@ pub struct ItemBuilder {
     is_taxable: Option<bool>,
     weight_per_unit: Option<Decimal>,
     shelf_life_days: Option<i32>,
+    standard_cost: Option<Decimal>,
     tags: Option<serde_json::Value>,
     data: Option<serde_json::Value>,
     status: Option<CatalogStatus>,
@@ -497,6 +509,12 @@ impl ItemBuilder {
         self
     }
 
+    /// Set the standard_cost field (optional)
+    pub fn standard_cost(mut self, value: Decimal) -> Self {
+        self.standard_cost = Some(value);
+        self
+    }
+
     /// Set the tags field (default: `serde_json::json!([])`)
     pub fn tags(mut self, value: serde_json::Value) -> Self {
         self.tags = Some(value);
@@ -545,6 +563,7 @@ impl ItemBuilder {
             is_taxable: self.is_taxable.unwrap_or(true),
             weight_per_unit: self.weight_per_unit,
             shelf_life_days: self.shelf_life_days,
+            standard_cost: self.standard_cost,
             tags: self.tags.unwrap_or(serde_json::json!([])),
             data: self.data.unwrap_or(serde_json::json!({})),
             status: self.status.unwrap_or_default(),

@@ -3527,6 +3527,9 @@ components:
           nullable: true
           type: integer
           format: int32
+        standard_cost:
+          nullable: true
+          type: string
         tags:
           type: object
         data:
@@ -3622,6 +3625,9 @@ components:
           nullable: true
           type: integer
           format: int32
+        standard_cost:
+          nullable: true
+          type: string
         tags:
           type: object
         data:
@@ -3704,6 +3710,9 @@ components:
           nullable: true
           type: integer
           format: int32
+        standard_cost:
+          nullable: true
+          type: string
         tags:
           type: object
         data:
@@ -3770,6 +3779,9 @@ components:
           nullable: true
           type: integer
           format: int32
+        standard_cost:
+          nullable: true
+          type: string
         tags:
           type: object
         data:

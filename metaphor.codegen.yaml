@@ -53,5 +53,14 @@ user_owned:
   - "src/domain/services/uom_tree.rs"
   - "tests/uom_tree_golden_cases.rs"
 
+  # Hand-written migrations the generator cannot re-derive from the schema: the UoM
+  # parent-store tree (ADR-0023) and the standard_cost column add. Neither carries a
+  # generator marker, so a `--force` regen leaves them be — declared here so the
+  # ownership is explicit rather than an artifact of the marker scheme.
+  - "migrations/20260823000001_uom_parent_store_tree.up.sql"
+  - "migrations/20260823000001_uom_parent_store_tree.down.sql"
+  - "migrations/20260825000001_add_standard_cost_to_item.up.sql"
+  - "migrations/20260825000001_add_standard_cost_to_item.down.sql"
+
   # Hand-authored module documentation.
   - "docs/**"
