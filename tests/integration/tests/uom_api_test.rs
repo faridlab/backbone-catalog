@@ -32,6 +32,7 @@ impl TestDataGenerator for UomTestData {
             "relative_uom_id": null,
             "relative_factor": null,
             "factor": 0,
+            "is_protected": false,
             "status": "active",
             "metadata": json!({}),
         })
@@ -49,6 +50,7 @@ impl TestDataGenerator for UomTestData {
             "relative_uom_id": null,
             "relative_factor": null,
             "factor": 0,
+            "is_protected": false,
             "status": "active",
             "metadata": json!({}),
         })

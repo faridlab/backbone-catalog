@@ -446,6 +446,7 @@ pub struct UomDto {
     pub relative_uom_id: Option<Uuid>,
     pub relative_factor: Option<Decimal>,
     pub factor: Decimal,
+    pub is_protected: bool,
     pub status: CatalogStatus,
     pub metadata: serde_json::Value,
 }

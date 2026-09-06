@@ -49,13 +49,14 @@ pub struct UomFilter {
     pub name: Option<String>,
     pub uom_type: Option<UomType>,
     pub relative_uom_id: Option<Uuid>,
+    pub is_protected: Option<bool>,
     pub status: Option<CatalogStatus>,
 }
 
 impl UomFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.company_id.is_some() || self.code.is_some() || self.name.is_some() || self.uom_type.is_some() || self.relative_uom_id.is_some() || self.status.is_some()
+        self.company_id.is_some() || self.code.is_some() || self.name.is_some() || self.uom_type.is_some() || self.relative_uom_id.is_some() || self.is_protected.is_some() || self.status.is_some()
     }
 }
 

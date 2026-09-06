@@ -4159,6 +4159,7 @@ components:
         - uom_type
         - decimal_places
         - factor
+        - is_protected
         - status
         - metadata
       properties:
@@ -4190,6 +4191,8 @@ components:
           type: string
         factor:
           type: string
+        is_protected:
+          type: boolean
         status:
           type: string
         metadata:
@@ -4217,6 +4220,7 @@ components:
         - uom_type
         - decimal_places
         - factor
+        - is_protected
         - status
         - metadata
       properties:
@@ -4245,6 +4249,8 @@ components:
           type: string
         factor:
           type: string
+        is_protected:
+          type: boolean
         status:
           type: string
         metadata:
@@ -4259,6 +4265,7 @@ components:
         - uom_type
         - decimal_places
         - factor
+        - is_protected
         - status
         - metadata
       properties:
@@ -4287,6 +4294,8 @@ components:
           type: string
         factor:
           type: string
+        is_protected:
+          type: boolean
         status:
           type: string
         metadata:
@@ -4320,6 +4329,8 @@ components:
           type: string
         factor:
           type: string
+        is_protected:
+          type: boolean
         status:
           type: string
         metadata:

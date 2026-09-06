@@ -8,7 +8,9 @@
 //! Guarded surface:
 //!   - **Item / ItemGroup**: READ + **validated create** via `CatalogWriteService`.
 //!     Generic update/delete/upsert/bulk are intentionally NOT mounted here.
-//!   - **Uom**: READ + validated create (tree root or child, ADR-0023) + validated re-parent.
+//!   - **Uom**: READ + validated create (tree root or child, ADR-0023) + validated re-parent
+//!     + validated retire (`POST /uoms/delete`): module-seeded (protected) units refuse deletion
+//!     with a typed error; user-created units archive once nothing leans on them (UM-4).
 //!     Conversion itself is application-side (`CatalogWriteService::convert_quantity`) and is not
 //!     an HTTP endpoint — consumers compose the service.
 //!   - **UomConversion**: READ only. Conversion is carried by the UoM parent-store tree since the
@@ -341,6 +343,25 @@ async fn set_uom_relative(
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct DeleteUomBody {
+    id: Uuid,
+}
+
+/// Retire a unit of measure through the validated path. Module-seeded (protected)
+/// units refuse with a typed error; user-created units archive once nothing leans on
+/// them (no live children, no live item defaulting to the unit).
+async fn delete_uom(
+    State(svc): State<Arc<CatalogWriteService>>,
+    Json(b): Json<DeleteUomBody>,
+) -> axum::response::Response {
+    match svc.delete_uom(b.id).await {
+        Ok(()) => (StatusCode::OK, Json(IdResponse { id: b.id })).into_response(),
+        Err(e) => err_response(e),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CreateBrandBody {
     code: String,
     name: String,
@@ -441,6 +462,7 @@ fn create_catalog_write_routes(svc: Arc<CatalogWriteService>) -> Router {
         .route("/item-lookup/:code", get(lookup_item))
         .route("/uoms", post(create_uom))
         .route("/uoms/:id/relative", post(set_uom_relative))
+        .route("/uoms/delete", post(delete_uom))
         .route("/brands", post(create_brand))
         .route("/attributes", post(create_attribute))
         .route("/attribute-values", post(create_attribute_value))

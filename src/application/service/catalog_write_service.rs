@@ -77,6 +77,15 @@ pub enum CatalogWriteError {
     /// A conversion between units of different trees (or over a corrupt tree) failed
     /// loudly — the typed ADR-0023 failure, never a silent numeric result.
     Conversion(UomConversionError),
+    /// The unit is module-seeded reference data (`is_protected`) and cannot be deleted;
+    /// retire it through the status lifecycle instead (UM-4).
+    ProtectedUom { code: String },
+    /// The unit is still the live parent of live units — re-link or detach the children
+    /// before retiring it, or the tree would lean on an archived reference.
+    UomHasChildren { code: String },
+    /// A live item still uses the unit as its default unit of measure (the orphaning
+    /// hazard that keeps generic delete off the guarded surface — ADR-005).
+    UomInUse { code: String },
     /// A write path needed the caller's company but the request scope was unset
     /// (missing `with_company_scope` / `with_request_scope` middleware).
     NoCompanyScope,
@@ -109,6 +118,9 @@ impl CatalogWriteError {
             CatalogWriteError::NonPositiveRelativeFactor => "non_positive_relative_factor",
             CatalogWriteError::UomCycle { .. } => "uom_cycle",
             CatalogWriteError::Conversion(e) => e.code(),
+            CatalogWriteError::ProtectedUom { .. } => "protected_uom",
+            CatalogWriteError::UomHasChildren { .. } => "uom_has_children",
+            CatalogWriteError::UomInUse { .. } => "uom_in_use",
             CatalogWriteError::NoCompanyScope => "no_company_scope",
             CatalogWriteError::Db(_) => "internal_error",
         }
@@ -144,6 +156,9 @@ impl std::fmt::Display for CatalogWriteError {
             CatalogWriteError::InvalidStatusTransition { from, to } => write!(f, ": {from:?} -> {to:?}"),
             CatalogWriteError::UomCycle { parent } => write!(f, ": {parent}"),
             CatalogWriteError::Conversion(e) => write!(f, ": {e}"),
+            CatalogWriteError::ProtectedUom { code }
+            | CatalogWriteError::UomHasChildren { code }
+            | CatalogWriteError::UomInUse { code } => write!(f, ": {code}"),
             _ => Ok(()),
         }
     }
@@ -438,7 +453,14 @@ impl CatalogWriteService {
                 )
                 .await;
             match r {
-                Ok(_) => Ok(id),
+                Ok(_) => {
+                    // A tree write ends with the declared derive: re-derive every stored
+                    // factor from the roots (heals any drift the new row would otherwise
+                    // inherit from a tampered parent, and raises loudly if any chain is
+                    // unreachable from a root).
+                    repo.recompute_factors(&self.db_pool).await?;
+                    Ok(id)
+                }
                 Err(e) if Self::is_dup(&e, "code") => Err(CatalogWriteError::DuplicateUomCode(u.code)),
                 Err(e) => Err(e.into()),
             }
@@ -524,6 +546,49 @@ impl CatalogWriteService {
         let from = UomChain::from_rows(from_uom, from_rows).map_err(CatalogWriteError::Conversion)?;
         let to = UomChain::from_rows(to_uom, to_rows).map_err(CatalogWriteError::Conversion)?;
         convert_quantity(qty, &from, &to, rounding).map_err(CatalogWriteError::Conversion)
+    }
+
+    /// Retire (soft-delete) a unit of measure through the validated path (UM-4).
+    ///
+    /// User-created units are deletable once nothing leans on them; module-seeded
+    /// reference units (`is_protected`) refuse deletion with a typed error — retire
+    /// those through the status lifecycle (`active -> inactive`) instead. The guards,
+    /// in order: the unit must exist and be live, must not be protected, must not be
+    /// the live parent of live units, and must not be the default unit of any live
+    /// item (the orphaning hazard that keeps generic delete off the guarded surface,
+    /// ADR-005). The database-level protected-unit triggers are the backstop if a
+    /// protected row ever slips past the service check.
+    pub async fn delete_uom(&self, uom_id: Uuid) -> Result<(), CatalogWriteError> {
+        let company = company_scope::current_company().ok_or(CatalogWriteError::NoCompanyScope)?;
+        let uoms = UomRepository::new(self.db_pool.clone());
+        let mut tx = self.db_pool.begin().await?;
+        company_scope::bind_current_company(&mut tx).await?;
+
+        // All probes run on the transaction connection so the protection state cannot
+        // change between the checks and the archive write.
+        let code: Option<String> = sqlx::query_scalar(
+            "SELECT code FROM catalog.uoms \
+             WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+        )
+        .bind(uom_id)
+        .bind(company)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let code = code.ok_or(CatalogWriteError::UomNotFound(uom_id))?;
+
+        if uoms.find_protection(&mut *tx, uom_id, company).await? != Some(false) {
+            return Err(CatalogWriteError::ProtectedUom { code });
+        }
+        if uoms.count_live_children(&mut *tx, company, uom_id).await? > 0 {
+            return Err(CatalogWriteError::UomHasChildren { code });
+        }
+        if uoms.exists_live_item_using(&mut *tx, company, uom_id).await? {
+            return Err(CatalogWriteError::UomInUse { code });
+        }
+
+        uoms.soft_delete_uom(&mut *tx, uom_id, company).await?;
+        tx.commit().await?;
+        Ok(())
     }
 
     pub async fn create_attribute(&self, a: NewAttribute) -> Result<Uuid, CatalogWriteError> {

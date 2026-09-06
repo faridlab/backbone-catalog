@@ -231,6 +231,90 @@ impl UomRepository {
             .await?;
         Ok(())
     }
+
+    // ── Protected-unit retire path (UM-4) ─────────────────────────────────────────
+
+    /// Protection flag of one live unit (`None` if the unit does not exist in the
+    /// company). Protected rows are module-seeded reference data and refuse deletion.
+    pub async fn find_protection(
+        &self,
+        conn: &mut PgConnection,
+        id: Uuid,
+        company: Uuid,
+    ) -> Result<Option<bool>, sqlx::Error> {
+        let protected: Option<bool> = sqlx::query_scalar(
+            "SELECT is_protected FROM catalog.uoms \
+             WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+        )
+        .bind(id)
+        .bind(company)
+        .fetch_optional(conn)
+        .await?;
+        Ok(protected)
+    }
+
+    /// Count the unit's live children in the tree — units whose `relative_uom_id`
+    /// points here. A unit that is still the live parent of live units must be
+    /// re-linked before it can be retired.
+    pub async fn count_live_children(
+        &self,
+        conn: &mut PgConnection,
+        company: Uuid,
+        uom: Uuid,
+    ) -> Result<i64, sqlx::Error> {
+        let n: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM catalog.uoms \
+             WHERE relative_uom_id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+        )
+        .bind(uom)
+        .bind(company)
+        .fetch_one(conn)
+        .await?;
+        Ok(n)
+    }
+
+    /// Does any live item still use this unit as its default? Retiring a referenced
+    /// unit would orphan the item's unit resolution (the reason generic delete is not
+    /// mounted for Uom — ADR-005).
+    pub async fn exists_live_item_using(
+        &self,
+        conn: &mut PgConnection,
+        company: Uuid,
+        uom: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let hit: bool = sqlx::query_scalar(
+            "SELECT EXISTS ( \
+                 SELECT 1 FROM catalog.items \
+                 WHERE default_uom_id = $1 AND company_id = $2 \
+                   AND (metadata->>'deleted_at') IS NULL )",
+        )
+        .bind(uom)
+        .bind(company)
+        .fetch_one(conn)
+        .await?;
+        Ok(hit)
+    }
+
+    /// Archive (soft-delete) a unit the validated retire path has cleared. The
+    /// storage-level protected-unit guard is the backstop if a protected row ever
+    /// reaches this UPDATE.
+    pub async fn soft_delete_uom(
+        &self,
+        conn: &mut PgConnection,
+        uom: Uuid,
+        company: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE catalog.uoms \
+             SET metadata = jsonb_set(metadata, '{deleted_at}', to_jsonb(now())) \
+             WHERE id = $1 AND company_id = $2",
+        )
+        .bind(uom)
+        .bind(company)
+        .execute(conn)
+        .await?;
+        Ok(())
+    }
 }
 
 backbone_core::impl_crud_repository!(UomRepository, Uom, soft_delete);

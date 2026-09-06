@@ -66,6 +66,15 @@ models:
         attributes: ["@precision(24,12)", "@positive", "@default(1)"]
         description: "Recursive stored effective factor to the tree root (1 of this unit = factor of the root unit; derived, 1 for a root)"
 
+      # Protected units (UM-4): rows seeded as canonical reference data cannot be
+      # deleted. Read-only in practice — protection is set by the seeding path, never
+      # by API callers; a BEFORE DELETE trigger enforces it at the storage layer so no
+      # write path (including raw SQL) can bypass it.
+      is_protected:
+        type: bool
+        attributes: ["@default(false)"]
+        description: "True for module-seeded reference units, which are blocked from deletion; user-created units are deletable"
+
       status:
         type: CatalogStatus
         attributes: ["@default(active)"]

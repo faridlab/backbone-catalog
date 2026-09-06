@@ -55,6 +55,9 @@ pub struct CreateUomDto {
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "relative_factor")]
     pub relative_factor: Option<Decimal>,
     pub factor: Decimal,
+    #[cfg_attr(feature = "openapi", schema(example = true))]
+    #[serde(alias = "is_protected")]
+    pub is_protected: bool,
     pub status: CatalogStatus,
 }
 
@@ -91,6 +94,9 @@ pub struct UpdateUomDto {
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "relative_factor")]
     pub relative_factor: Option<Decimal>,
     pub factor: Decimal,
+    #[cfg_attr(feature = "openapi", schema(example = true))]
+    #[serde(alias = "is_protected")]
+    pub is_protected: bool,
     pub status: CatalogStatus,
 }
 
@@ -130,6 +136,9 @@ pub struct PatchUomDto {
     pub relative_factor: Option<Decimal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub factor: Option<Decimal>,
+    #[cfg_attr(feature = "openapi", schema(example = true))]
+    #[serde(skip_serializing_if = "Option::is_none", alias = "is_protected")]
+    pub is_protected: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<CatalogStatus>,
 }
@@ -137,7 +146,7 @@ pub struct PatchUomDto {
 impl PatchUomDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.code.is_some() || self.name.is_some() || self.uom_type.is_some() || self.decimal_places.is_some() || self.relative_uom_id.is_some() || self.relative_factor.is_some() || self.factor.is_some() || self.status.is_some()
+        self.company_id.is_some() || self.code.is_some() || self.name.is_some() || self.uom_type.is_some() || self.decimal_places.is_some() || self.relative_uom_id.is_some() || self.relative_factor.is_some() || self.factor.is_some() || self.is_protected.is_some() || self.status.is_some()
     }
 }
 
@@ -167,6 +176,8 @@ pub struct UomResponseDto {
     pub relative_uom_id: Option<Uuid>,
     pub relative_factor: Option<Decimal>,
     pub factor: Decimal,
+    #[cfg_attr(feature = "openapi", schema(example = true))]
+    pub is_protected: bool,
     pub status: CatalogStatus,
     pub metadata: AuditMetadata,
 }
@@ -247,6 +258,7 @@ impl From<Uom> for UomResponseDto {
             relative_uom_id: entity.relative_uom_id,
             relative_factor: entity.relative_factor,
             factor: entity.factor,
+            is_protected: entity.is_protected,
             status: entity.status,
             metadata: entity.metadata,
         }
@@ -278,6 +290,7 @@ impl From<CreateUomDto> for Uom {
             relative_uom_id: dto.relative_uom_id,
             relative_factor: dto.relative_factor,
             factor: dto.factor,
+            is_protected: dto.is_protected,
             status: dto.status,
             metadata: AuditMetadata::default(),
         }
@@ -296,6 +309,7 @@ impl From<&Uom> for UomResponseDto {
             relative_uom_id: entity.relative_uom_id.clone(),
             relative_factor: entity.relative_factor.clone(),
             factor: entity.factor.clone(),
+            is_protected: entity.is_protected.clone(),
             status: entity.status.clone(),
             metadata: entity.metadata.clone(),
         }
@@ -318,6 +332,7 @@ impl backbone_core::ApplyUpdateDto<UpdateUomDto> for Uom {
         self.relative_uom_id = dto.relative_uom_id;
         self.relative_factor = dto.relative_factor;
         self.factor = dto.factor;
+        self.is_protected = dto.is_protected;
         self.status = dto.status;
         Ok(self)
     }

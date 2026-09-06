@@ -60,6 +60,7 @@ pub struct Uom {
     pub relative_uom_id: Option<Uuid>,
     pub relative_factor: Option<Decimal>,
     pub factor: Decimal,
+    pub is_protected: bool,
     pub status: CatalogStatus,
     #[serde(default)]
     #[sqlx(json)]
@@ -73,7 +74,7 @@ impl Uom {
     }
 
     /// Create a new Uom with required fields
-    pub fn new(company_id: Uuid, code: String, name: String, uom_type: UomType, decimal_places: i32, factor: Decimal, status: CatalogStatus) -> Self {
+    pub fn new(company_id: Uuid, code: String, name: String, uom_type: UomType, decimal_places: i32, factor: Decimal, is_protected: bool, status: CatalogStatus) -> Self {
         Self {
             id: Uuid::new_v4(),
             company_id,
@@ -84,6 +85,7 @@ impl Uom {
             relative_uom_id: None,
             relative_factor: None,
             factor,
+            is_protected,
             status,
             metadata: AuditMetadata::default(),
         }
@@ -193,6 +195,9 @@ impl Uom {
                 "factor" => {
                     if let Ok(v) = serde_json::from_value(value) { self.factor = v; }
                 }
+                "is_protected" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.is_protected = v; }
+                }
                 "status" => {
                     if let Ok(v) = serde_json::from_value(value) { self.status = v; }
                 }
@@ -281,6 +286,7 @@ pub struct UomBuilder {
     relative_uom_id: Option<Uuid>,
     relative_factor: Option<Decimal>,
     factor: Option<Decimal>,
+    is_protected: Option<bool>,
     status: Option<CatalogStatus>,
 }
 
@@ -333,6 +339,12 @@ impl UomBuilder {
         self
     }
 
+    /// Set the is_protected field (default: `false`)
+    pub fn is_protected(mut self, value: bool) -> Self {
+        self.is_protected = Some(value);
+        self
+    }
+
     /// Set the status field (default: `CatalogStatus::default()`)
     pub fn status(mut self, value: CatalogStatus) -> Self {
         self.status = Some(value);
@@ -357,6 +369,7 @@ impl UomBuilder {
             relative_uom_id: self.relative_uom_id,
             relative_factor: self.relative_factor,
             factor: self.factor.unwrap_or(Decimal::from(1)),
+            is_protected: self.is_protected.unwrap_or(false),
             status: self.status.unwrap_or_default(),
             metadata: AuditMetadata::default(),
         })

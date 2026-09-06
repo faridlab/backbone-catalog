@@ -19,7 +19,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use backbone_catalog::{
-    CatalogWriteError, CatalogWriteService, ConversionRounding, NewUom, UomConversionError,
+    CatalogWriteError, CatalogWriteService, ConversionRounding, NewItem, NewItemGroup, NewUom,
+    UomConversionError,
 };
 use backbone_orm::company_scope;
 
@@ -422,4 +423,139 @@ async fn new_uom_err(
     })
     .await
     .unwrap_err()
+}
+
+// GC-UOM-7: protected units (UM-4) — the validated retire path and its storage backstop.
+//   - a user-created unit with nothing leaning on it archives (soft delete) cleanly;
+//   - a module-seeded (protected) unit refuses via the service with the typed
+//     ProtectedUom error;
+//   - the same protected row ALSO refuses at the storage layer on both delete shapes —
+//     a raw row DELETE and a raw soft-delete UPDATE each raise, so no write path
+//     (generic CRUD, raw SQL) can bypass the guard the way upstream's ORM-only
+//     @api.ondelete hook could;
+//   - a unit that is still the live parent of live units refuses (UomHasChildren);
+//   - a unit that is the default of a live item refuses (UomInUse);
+//   - ordinary writes on protected rows (factor recompute, status-retire via the
+//     lifecycle) still work — the guard refuses deletion only, not editing or archiving.
+#[tokio::test]
+async fn protected_units_delete_guards() {
+    let pool = pool().await;
+    let svc = CatalogWriteService::new(pool.clone());
+    let company = Uuid::new_v4();
+    company_scope::with_company_scope(Some(company), async {
+        // A user unit nothing leans on: retires cleanly.
+        let lone = new_uom(&svc, company, "LONE", None).await;
+        svc.delete_uom(lone).await.expect("user unit deletes");
+        let archived: bool = sqlx::query_scalar(
+            "SELECT (metadata->>'deleted_at') IS NOT NULL FROM catalog.uoms WHERE id = $1",
+        )
+        .bind(lone)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert!(archived, "retire is a soft delete: the row stays, stamped");
+
+        // A module-seeded (protected) unit: the seeding path marks is_protected at
+        // insert time; simulate it with a direct UPDATE (the only writer of the flag).
+        let seeded = new_uom(&svc, company, "SEEDED", None).await;
+        sqlx::query("UPDATE catalog.uoms SET is_protected = true WHERE id = $1")
+            .bind(seeded)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // Service path: typed refusal, never a silent archive.
+        let err = svc.delete_uom(seeded).await.expect_err("protected unit refuses");
+        assert!(matches!(err, CatalogWriteError::ProtectedUom { .. }));
+        assert_eq!(err.code(), "protected_uom");
+        let still_live: bool = sqlx::query_scalar(
+            "SELECT (metadata->>'deleted_at') IS NULL FROM catalog.uoms WHERE id = $1",
+        )
+        .bind(seeded)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert!(still_live, "the refused delete wrote nothing");
+
+        // Storage backstop, hard delete: raw SQL DELETE on the protected row raises.
+        let hard = sqlx::query("DELETE FROM catalog.uoms WHERE id = $1")
+            .bind(seeded)
+            .execute(&pool)
+            .await;
+        assert!(hard.is_err(), "raw DELETE on a protected unit must raise");
+
+        // Storage backstop, soft delete: the deleted_at-stamping UPDATE raises too.
+        let soft = sqlx::query(
+            "UPDATE catalog.uoms \
+             SET metadata = jsonb_set(metadata, '{deleted_at}', to_jsonb(now())) \
+             WHERE id = $1",
+        )
+        .bind(seeded)
+        .execute(&pool)
+        .await;
+        assert!(soft.is_err(), "soft-delete UPDATE on a protected unit must raise");
+
+        // The guard refuses deletion only: ordinary writes on the protected row work —
+        // factor recompute is a no-op here but exercises the UPDATE path, and the
+        // status lifecycle (the retire story for seeded units) stays writable.
+        sqlx::query("SELECT catalog.uom_recompute_factors()").execute(&pool).await.unwrap();
+        sqlx::query("UPDATE catalog.uoms SET status = 'inactive' WHERE id = $1")
+            .bind(seeded)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // A unit with live children: refuse until the subtree is re-linked.
+        let parent = new_uom(&svc, company, "PARENT", None).await;
+        let _child = new_uom(&svc, company, "CHILD", Some((parent, Decimal::from(10)))).await;
+        let err = svc.delete_uom(parent).await.expect_err("parent refuses while children live");
+        assert!(matches!(err, CatalogWriteError::UomHasChildren { .. }));
+        // Detach the child; now the parent retires.
+        svc.set_uom_relative(_child, None).await.expect("detach child");
+        svc.delete_uom(parent).await.expect("parent deletes once childless");
+
+        // A unit a live item defaults to: refuse (the orphaning hazard of ADR-005).
+        let used = new_uom(&svc, company, "USED", None).await;
+        let group = svc
+            .create_item_group(NewItemGroup {
+                company_id: company,
+                code: uq("GRP"),
+                name: "Group".into(),
+                parent_id: None,
+                is_group: false,
+            })
+            .await
+            .expect("item group");
+        svc.create_item(NewItem {
+            company_id: company,
+            item_code: uq("ITEM"),
+            name: "Item".into(),
+            description: None,
+            barcode: None,
+            brand_id: None,
+            item_group_id: group,
+            default_uom_id: used,
+            item_type: None,
+            is_sales_item: true,
+            is_purchase_item: false,
+            is_stock_item: false,
+            hsn_code: None,
+            is_taxable: true,
+            weight_per_unit: None,
+            standard_cost: None,
+            tags: None,
+            data: None,
+        })
+        .await
+        .expect("item");
+        let err = svc.delete_uom(used).await.expect_err("referenced unit refuses");
+        assert!(matches!(err, CatalogWriteError::UomInUse { .. }));
+
+        // Unknown unit: loud typed refusal (no silent success on a missing row).
+        assert!(matches!(
+            svc.delete_uom(Uuid::new_v4()).await.unwrap_err(),
+            CatalogWriteError::UomNotFound(_)
+        ));
+    })
+    .await;
 }

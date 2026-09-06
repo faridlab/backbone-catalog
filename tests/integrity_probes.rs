@@ -237,3 +237,39 @@ async fn deleting_last_variant_resets_has_variants() {
     let has2: bool = sqlx::query_scalar("SELECT has_variants FROM catalog.items WHERE id=$1").bind(item).fetch_one(&pool).await.unwrap();
     assert!(!has2, "has_variants must flip back to false when the last variant is deleted");
 }
+
+// IGC-10: the validated Uom retire endpoint (UM-4) — a module-seeded (protected) unit
+// refuses with 422, an unreferenced user unit archives with 200, and the unit a live
+// item defaults to refuses with 422.
+#[tokio::test]
+async fn guarded_uom_retire_endpoint_enforces_protection() {
+    let pool = pool().await;
+    let company = Uuid::new_v4();
+    let (g, u) = seed_group_and_uom(&pool, company).await;
+    let app = create_guarded_catalog_routes(&module(&pool).await);
+
+    // A user unit nothing leans on retires cleanly.
+    let lone = Uuid::new_v4();
+    sqlx::query("INSERT INTO catalog.uoms (id, company_id, code, name) VALUES ($1,$2,$3,'L')")
+        .bind(lone).bind(company).bind(uq("LONE")).execute(&pool).await.unwrap();
+    let ok = send(app.clone(), company, "POST", "/uoms/delete", Some(format!(r#"{{"id":"{lone}"}}"#))).await;
+    assert_eq!(ok, StatusCode::OK);
+
+    // A protected (module-seeded) unit refuses.
+    let seeded = Uuid::new_v4();
+    sqlx::query("INSERT INTO catalog.uoms (id, company_id, code, name) VALUES ($1,$2,$3,'S')")
+        .bind(seeded).bind(company).bind(uq("SEEDED")).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE catalog.uoms SET is_protected = true WHERE id = $1")
+        .bind(seeded).execute(&pool).await.unwrap();
+    let refused = send(app.clone(), company, "POST", "/uoms/delete", Some(format!(r#"{{"id":"{seeded}"}}"#))).await;
+    assert_eq!(refused, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // The seeded unit's group sibling is the default of the seeded item above: the
+    // referenced unit (u) refuses too — u is default_uom of nothing yet, so first prove
+    // the referenced case by pointing a live item at the second seeded-style unit.
+    let item = Uuid::new_v4();
+    sqlx::query("INSERT INTO catalog.items (id, company_id, item_code, name, item_group_id, default_uom_id) VALUES ($1,$2,$3,'T',$4,$5)")
+        .bind(item).bind(company).bind(uq("SKU2")).bind(g).bind(u).execute(&pool).await.unwrap();
+    let in_use = send(app, company, "POST", "/uoms/delete", Some(format!(r#"{{"id":"{u}"}}"#))).await;
+    assert_eq!(in_use, StatusCode::UNPROCESSABLE_ENTITY);
+}
