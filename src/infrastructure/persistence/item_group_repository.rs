@@ -54,13 +54,13 @@ impl ItemGroupRepository {
     /// `EXISTS` probe for a live row (replaces the prior string-built `exists_in` helper
     /// in the write service). Used for both `parent_id` validation on create-item-group and
     /// `item_group_id` FK validation on create-item.
-    pub async fn exists_id(&self, pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
+    pub async fn exists_id(&self, executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>, id: Uuid) -> Result<bool, sqlx::Error> {
         let found: Option<Uuid> = sqlx::query_scalar(
             "SELECT id FROM catalog.item_groups \
              WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
         .bind(id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?;
         Ok(found.is_some())
     }
@@ -69,7 +69,7 @@ impl ItemGroupRepository {
     /// `sqlx::Error` so the service can disambiguate code duplicates.
     pub async fn insert_item_group(
         &self,
-        pool: &PgPool,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
         r: &NewItemGroupRow<'_>,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
@@ -81,7 +81,7 @@ impl ItemGroupRepository {
         .bind(r.name)
         .bind(r.parent_id)
         .bind(r.is_group)
-        .execute(pool)
+        .execute(executor)
         .await?;
         Ok(())
     }

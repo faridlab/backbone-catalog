@@ -5,15 +5,16 @@
 //! below hold the catalog write service's variant SQL (4-layer rule: services orchestrate, repos
 //! hold SQL).
 //!
-//! Tenant-agnostic (ADR-0029): no statement here names a tenancy column. When the composing
-//! host mounts a request-scoped org fence, plain pool reads ride the request-dedicated
-//! scoped connection and see only in-scope rows; undecorated, they see the whole table.
+//! Tenant-agnostic (ADR-0029): no statement here names a tenancy column. Statements ride
+//! whatever executor the caller passes — write verbs pass their org-scoped transaction;
+//! request-path reads use the `*_scoped` helpers, which ride the composing host's
+//! request-dedicated connection when one is bound and the plain pool otherwise.
 //!
 //! Thin newtype over `backbone_orm::GenericCrudRepository<ItemVariant, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
 use rust_decimal::Decimal;
-use sqlx::{PgConnection, PgPool};
+use sqlx::{PgConnection, PgPool, Row};
 use uuid::Uuid;
 
 use crate::domain::entity::ItemVariant;
@@ -63,7 +64,7 @@ impl ItemVariantRepository {
     /// connection, so out-of-scope variants simply are not found.
     pub async fn find_variant_by_scan_code(
         &self,
-        pool: &PgPool,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
         code: &str,
     ) -> Result<Option<ItemHit>, sqlx::Error> {
         let hit = sqlx::query_as::<_, ItemHit>(
@@ -74,16 +75,46 @@ impl ItemVariantRepository {
                LIMIT 1"#,
         )
         .bind(code)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?;
         Ok(hit)
+    }
+
+    /// Scan-code variant lookup for the request path: rides the composing host's
+    /// request-dedicated connection when one is bound (so the org fence applies), plain
+    /// pool otherwise. Tenant-agnostic — the database fence owns isolation, this picks the lane.
+    pub async fn find_variant_by_scan_code_scoped(
+        &self,
+        pool: &PgPool,
+        code: &str,
+    ) -> Result<Option<ItemHit>, sqlx::Error> {
+        let row = backbone_orm::org_scope::fetch_optional_row_scoped(
+            pool,
+            sqlx::query(
+                r#"SELECT v.item_id, v.id AS variant_id, i.item_code, i.name, v.barcode, v.sku
+                   FROM catalog.item_variants v JOIN catalog.items i ON i.id = v.item_id
+                   WHERE (v.barcode = $1 OR v.sku = $1)
+                     AND (v.metadata->>'deleted_at') IS NULL
+                   LIMIT 1"#,
+            )
+            .bind(code),
+        )
+        .await?;
+        Ok(row.map(|r| ItemHit {
+            item_id: r.get("item_id"),
+            variant_id: r.get("variant_id"),
+            item_code: r.get("item_code"),
+            name: r.get("name"),
+            barcode: r.get("barcode"),
+            sku: r.get("sku"),
+        }))
     }
 
     /// Resolve `item_id` for a live variant (the soft-delete lookup step in
     /// `CatalogWriteService::delete_item_variant`).
     pub async fn find_item_id_for_live(
         &self,
-        pool: &PgPool,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
         variant_id: Uuid,
     ) -> Result<Option<Uuid>, sqlx::Error> {
         let item_id: Option<Uuid> = sqlx::query_scalar(
@@ -91,7 +122,7 @@ impl ItemVariantRepository {
              WHERE id=$1 AND (metadata->>'deleted_at') IS NULL",
         )
         .bind(variant_id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?;
         Ok(item_id)
     }

@@ -274,9 +274,10 @@ impl CatalogWriteService {
 
     /// Re-bind the caller's ambient org scope onto a transaction this service opened itself.
     ///
-    /// Reads and writes on the shared pool already ride the request-dedicated scoped
-    /// connection when the composed host mounts one; a transaction begun on that pool would
-    /// otherwise miss the fence variables, so the ambient scope (if any) is re-set
+    /// Plain pool operations never inherit the composing host's request scope — sqlx
+    /// acquires a fresh, unfenced connection for them, so under a decorated host an insert
+    /// would lose the acting-unit DEFAULT and a read would see nothing at all. Every write
+    /// verb therefore opens its own transaction and re-binds the ambient scope (if any)
     /// transaction-locally. With no ambient scope (standalone deployment, background jobs)
     /// the transaction stays plain — the module functions undecorated.
     async fn relay_ambient_scope(conn: &mut sqlx::PgConnection) -> Result<(), sqlx::Error> {
@@ -288,15 +289,17 @@ impl CatalogWriteService {
 
     /// Resolve a scanned code (barcode OR SKU/item_code) to a sellable identity. Matches the base item
     /// first (by `barcode` or `item_code`), then a variant (by `barcode` or `sku`). `None` = unknown
-    /// code. Tenant-agnostic: under a composed host's org request scope the lookups ride the
-    /// request-dedicated scoped connection, so out-of-scope rows are simply not found.
+    /// code. Tenant-agnostic: the lookups ride the request-dedicated scoped connection when the
+    /// composed host mounts one, so out-of-scope rows are simply not found.
     pub async fn lookup_item(&self, code: &str) -> Result<Option<ItemHit>, CatalogWriteError> {
         let items = ItemRepository::new(self.db_pool.clone());
-        if let Some(hit) = items.find_by_scan_code(&self.db_pool, code).await? {
+        if let Some(hit) = items.find_by_scan_code_scoped(&self.db_pool, code).await? {
             return Ok(Some(hit));
         }
         let variants = ItemVariantRepository::new(self.db_pool.clone());
-        let hit = variants.find_variant_by_scan_code(&self.db_pool, code).await?;
+        let hit = variants
+            .find_variant_by_scan_code_scoped(&self.db_pool, code)
+            .await?;
         Ok(hit)
     }
 
@@ -308,15 +311,17 @@ impl CatalogWriteService {
 
     pub async fn create_item_group(&self, g: NewItemGroup) -> Result<Uuid, CatalogWriteError> {
         let item_groups = ItemGroupRepository::new(self.db_pool.clone());
+        let mut tx = self.db_pool.begin().await?;
+        Self::relay_ambient_scope(&mut tx).await?;
         if let Some(pid) = g.parent_id {
-            if !item_groups.exists_id(&self.db_pool, pid).await? {
+            if !item_groups.exists_id(&mut *tx, pid).await? {
                 return Err(CatalogWriteError::ParentNotFound(pid));
             }
         }
         let id = Uuid::new_v4();
         let r = item_groups
             .insert_item_group(
-                &self.db_pool,
+                &mut *tx,
                 &NewItemGroupRow {
                     id,
                     code: &g.code,
@@ -327,7 +332,10 @@ impl CatalogWriteService {
             )
             .await;
         match r {
-            Ok(_) => Ok(id),
+            Ok(_) => {
+                tx.commit().await?;
+                Ok(id)
+            }
             Err(e) if Self::is_dup(&e, "code") => Err(CatalogWriteError::DuplicateItemCode(g.code)),
             Err(e) => Err(e.into()),
         }
@@ -342,16 +350,18 @@ impl CatalogWriteService {
             return Err(CatalogWriteError::NoUsageFlag);
         }
         let item_groups = ItemGroupRepository::new(self.db_pool.clone());
-        if !item_groups.exists_id(&self.db_pool, i.item_group_id).await? {
+        let uoms = UomRepository::new(self.db_pool.clone());
+        let mut tx = self.db_pool.begin().await?;
+        Self::relay_ambient_scope(&mut tx).await?;
+        if !item_groups.exists_id(&mut *tx, i.item_group_id).await? {
             return Err(CatalogWriteError::ItemGroupNotFound(i.item_group_id));
         }
-        let uoms = UomRepository::new(self.db_pool.clone());
-        if !uoms.exists_id(&self.db_pool, i.default_uom_id).await? {
+        if !uoms.exists_id(&mut *tx, i.default_uom_id).await? {
             return Err(CatalogWriteError::UomNotFound(i.default_uom_id));
         }
         if let Some(bid) = i.brand_id {
             let brands = BrandRepository::new(self.db_pool.clone());
-            if !brands.exists_id(&self.db_pool, bid).await? {
+            if !brands.exists_id(&mut *tx, bid).await? {
                 return Err(CatalogWriteError::BrandNotFound(bid));
             }
         }
@@ -361,7 +371,7 @@ impl CatalogWriteService {
         let items = ItemRepository::new(self.db_pool.clone());
         let r = items
             .insert_item(
-                &self.db_pool,
+                &mut *tx,
                 &NewItemRow {
                     id,
                     item_code: &i.item_code,
@@ -385,7 +395,10 @@ impl CatalogWriteService {
             )
             .await;
         match r {
-            Ok(_) => Ok(id),
+            Ok(_) => {
+                tx.commit().await?;
+                Ok(id)
+            }
             Err(e) if Self::is_dup(&e, "barcode") => Err(CatalogWriteError::DuplicateBarcode(
                 i.barcode.unwrap_or_default(),
             )),
@@ -402,20 +415,22 @@ impl CatalogWriteService {
     /// a child of that reference unit and its stored factor is derived as
     /// `parent.factor * relative_factor`; without it the unit is a new tree root (factor 1).
     pub async fn create_uom(&self, u: NewUom) -> Result<Uuid, CatalogWriteError> {
+        let repo = UomRepository::new(self.db_pool.clone());
+        let mut tx = self.db_pool.begin().await?;
+        Self::relay_ambient_scope(&mut tx).await?;
         let (relative_uom_id, relative_factor, factor) = match (u.relative_uom_id, u.relative_factor) {
             (None, None) => (None, None, Decimal::ONE),
             (Some(parent), Some(rf)) => {
                 if rf <= Decimal::ZERO {
                     return Err(CatalogWriteError::NonPositiveRelativeFactor);
                 }
-                let uoms = UomRepository::new(self.db_pool.clone());
-                if !uoms.exists_id(&self.db_pool, parent).await? {
+                if !repo.exists_id(&mut *tx, parent).await? {
                     return Err(CatalogWriteError::ParentNotFound(parent));
                 }
                 // A new unit has no descendants yet, so its stored factor is exactly
                 // the parent's stored factor scaled by the link ratio.
-                let parent_factor = uoms
-                    .find_factor(&self.db_pool, parent)
+                let parent_factor = repo
+                    .find_factor(&mut *tx, parent)
                     .await?
                     .ok_or(CatalogWriteError::ParentNotFound(parent))?;
                 (Some(parent), Some(rf), parent_factor * rf)
@@ -426,10 +441,9 @@ impl CatalogWriteService {
         };
         let id = Uuid::new_v4();
         let ut = u.uom_type.clone().unwrap_or_else(|| "count".to_string());
-        let repo = UomRepository::new(self.db_pool.clone());
         let r = repo
             .insert_uom(
-                &self.db_pool,
+                &mut *tx,
                 &NewUomRow {
                     id,
                     code: &u.code,
@@ -447,8 +461,11 @@ impl CatalogWriteService {
                 // A tree write ends with the declared derive: re-derive every stored
                 // factor from the roots (heals any drift the new row would otherwise
                 // inherit from a tampered parent, and raises loudly if any chain is
-                // unreachable from a root).
-                repo.recompute_factors(&self.db_pool).await?;
+                // unreachable from a root). The insert and the derive share one
+                // transaction, so a failing derive rolls the new row back instead of
+                // committing drift.
+                repo.recompute_factors(&mut *tx).await?;
+                tx.commit().await?;
                 Ok(id)
             }
             Err(e) if Self::is_dup(&e, "code") => Err(CatalogWriteError::DuplicateUomCode(u.code)),
@@ -476,15 +493,16 @@ impl CatalogWriteService {
             }
         };
         let uoms = UomRepository::new(self.db_pool.clone());
-        // Pre-validation reads run on the pool before the transaction opens; the mutation
-        // and the factor re-derivation below share one committed unit of work.
-        if !uoms.exists_id(&self.db_pool, uom_id).await? {
-            return Err(CatalogWriteError::UomNotFound(uom_id));
-        }
         let mut tx = self.db_pool.begin().await?;
         Self::relay_ambient_scope(&mut tx).await?;
+        // Pre-validation reads run on the scoped transaction connection so the fence sees
+        // the caller's scope; the mutation and the factor re-derivation below share the
+        // same committed unit of work.
+        if !uoms.exists_id(&mut *tx, uom_id).await? {
+            return Err(CatalogWriteError::UomNotFound(uom_id));
+        }
         if let Some(parent) = relative_uom_id {
-            if !uoms.exists_id(&self.db_pool, parent).await? {
+            if !uoms.exists_id(&mut *tx, parent).await? {
                 return Err(CatalogWriteError::ParentNotFound(parent));
             }
             // The cycle rule: linking at yourself or any descendant would leave the
@@ -573,9 +591,11 @@ impl CatalogWriteService {
         let id = Uuid::new_v4();
         let at = a.attribute_type.clone().unwrap_or_else(|| "other".to_string());
         let repo = AttributeRepository::new(self.db_pool.clone());
+        let mut tx = self.db_pool.begin().await?;
+        Self::relay_ambient_scope(&mut tx).await?;
         let r = repo
             .insert_attribute(
-                &self.db_pool,
+                &mut *tx,
                 &NewAttributeRow {
                     id,
                     code: &a.code,
@@ -585,7 +605,10 @@ impl CatalogWriteService {
             )
             .await;
         match r {
-            Ok(_) => Ok(id),
+            Ok(_) => {
+                tx.commit().await?;
+                Ok(id)
+            }
             Err(e) if Self::is_dup(&e, "code") => Err(CatalogWriteError::DuplicateAttributeCode(a.code)),
             Err(e) => Err(e.into()),
         }
@@ -593,14 +616,16 @@ impl CatalogWriteService {
 
     pub async fn create_attribute_value(&self, v: NewAttributeValue) -> Result<Uuid, CatalogWriteError> {
         let attrs = AttributeRepository::new(self.db_pool.clone());
-        if !attrs.exists_id(&self.db_pool, v.attribute_id).await? {
+        let mut tx = self.db_pool.begin().await?;
+        Self::relay_ambient_scope(&mut tx).await?;
+        if !attrs.exists_id(&mut *tx, v.attribute_id).await? {
             return Err(CatalogWriteError::AttributeNotFound(v.attribute_id));
         }
         let id = Uuid::new_v4();
         let repo = AttributeValueRepository::new(self.db_pool.clone());
         let r = repo
             .insert_attribute_value(
-                &self.db_pool,
+                &mut *tx,
                 &NewAttributeValueRow {
                     id,
                     attribute_id: v.attribute_id,
@@ -613,7 +638,10 @@ impl CatalogWriteService {
             )
             .await;
         match r {
-            Ok(_) => Ok(id),
+            Ok(_) => {
+                tx.commit().await?;
+                Ok(id)
+            }
             Err(e) if Self::is_dup(&e, "code") => Err(CatalogWriteError::DuplicateValueCode(v.code)),
             Err(e) => Err(e.into()),
         }
@@ -624,26 +652,30 @@ impl CatalogWriteService {
     /// `has_variants` flag. `variant_label` defaults to the option value labels joined " / ".
     pub async fn create_item_variant(&self, v: NewItemVariant) -> Result<Uuid, CatalogWriteError> {
         let items = ItemRepository::new(self.db_pool.clone());
-        if !items.exists_id(&self.db_pool, v.item_id).await? {
-            return Err(CatalogWriteError::ItemNotFound(v.item_id));
-        }
         if v.options.is_empty() {
             return Err(CatalogWriteError::NoOptions);
         }
 
-        // Validate options against the registry and collect display labels for the label default.
+        // Validate options against the registry and collect display labels for the label
+        // default. The validation reads ride the scoped transaction connection so the
+        // fence sees the caller's scope.
         let attr_values = AttributeValueRepository::new(self.db_pool.clone());
         let attrs = AttributeRepository::new(self.db_pool.clone());
+        let mut tx = self.db_pool.begin().await?;
+        Self::relay_ambient_scope(&mut tx).await?;
+        if !items.exists_id(&mut *tx, v.item_id).await? {
+            return Err(CatalogWriteError::ItemNotFound(v.item_id));
+        }
         let mut labels: Vec<String> = Vec::with_capacity(v.options.len());
         for (attr_code, val_code) in &v.options {
             let row = attr_values
-                .find_value_with_attribute(&self.db_pool, attr_code, val_code)
+                .find_value_with_attribute(&mut *tx, attr_code, val_code)
                 .await?;
             match row {
                 Some(r) => labels.push(r.label),
                 None => {
                     // Distinguish unknown axis vs unknown value for a clearer error.
-                    let attr_ok = attrs.find_id_by_code(&self.db_pool, attr_code).await?;
+                    let attr_ok = attrs.find_id_by_code(&mut *tx, attr_code).await?;
                     return if attr_ok.is_some() {
                         Err(CatalogWriteError::UnknownAttributeValue(format!("{attr_code}={val_code}")))
                     } else {
@@ -657,10 +689,6 @@ impl CatalogWriteService {
         let options_json = serde_json::to_value(&v.options).unwrap_or(serde_json::json!({}));
 
         let id = Uuid::new_v4();
-        let mut tx = self.db_pool.begin().await?;
-        // Re-bind the ambient org scope (if the composed host set one) so the transaction
-        // sees the same fence the pool reads rode.
-        Self::relay_ambient_scope(&mut tx).await?;
         let variants = ItemVariantRepository::new(self.db_pool.clone());
         let r = variants
             .insert_variant(
@@ -696,13 +724,13 @@ impl CatalogWriteService {
     /// left, flip the flag back to false so the storefront picker never lies.
     pub async fn delete_item_variant(&self, variant_id: Uuid) -> Result<(), CatalogWriteError> {
         let variants = ItemVariantRepository::new(self.db_pool.clone());
+        let mut tx = self.db_pool.begin().await?;
+        Self::relay_ambient_scope(&mut tx).await?;
         let item_id = variants
-            .find_item_id_for_live(&self.db_pool, variant_id)
+            .find_item_id_for_live(&mut *tx, variant_id)
             .await?
             .ok_or(CatalogWriteError::ItemVariantNotFound(variant_id))?;
 
-        let mut tx = self.db_pool.begin().await?;
-        Self::relay_ambient_scope(&mut tx).await?;
         variants.soft_delete_variant(&mut *tx, variant_id).await?;
         let remaining = variants.count_live_variants(&mut *tx, item_id).await?;
         if remaining == 0 {
@@ -749,9 +777,11 @@ impl CatalogWriteService {
     pub async fn create_brand(&self, b: NewBrand) -> Result<Uuid, CatalogWriteError> {
         let id = Uuid::new_v4();
         let repo = BrandRepository::new(self.db_pool.clone());
+        let mut tx = self.db_pool.begin().await?;
+        Self::relay_ambient_scope(&mut tx).await?;
         let r = repo
             .insert_brand(
-                &self.db_pool,
+                &mut *tx,
                 &NewBrandRow {
                     id,
                     code: &b.code,
@@ -764,7 +794,10 @@ impl CatalogWriteService {
             )
             .await;
         match r {
-            Ok(_) => Ok(id),
+            Ok(_) => {
+                tx.commit().await?;
+                Ok(id)
+            }
             Err(e) if Self::is_dup(&e, "code") => Err(CatalogWriteError::DuplicateBrandCode(b.code)),
             Err(e) => Err(e.into()),
         }

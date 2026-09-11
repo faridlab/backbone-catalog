@@ -68,7 +68,7 @@ impl AttributeValueRepository {
     /// [`AttributeRepository::find_id_by_code`].
     pub async fn find_value_with_attribute(
         &self,
-        pool: &PgPool,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
         attr_code: &str,
         val_code: &str,
     ) -> Result<Option<AttributeValueResolveRow>, sqlx::Error> {
@@ -82,7 +82,7 @@ impl AttributeValueRepository {
         )
         .bind(attr_code)
         .bind(val_code)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?;
         Ok(row.map(|(id, label)| AttributeValueResolveRow { id, label }))
     }
@@ -91,7 +91,7 @@ impl AttributeValueRepository {
     /// `sqlx::Error` so the service can disambiguate code duplicates.
     pub async fn insert_attribute_value(
         &self,
-        pool: &PgPool,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
         r: &NewAttributeValueRow<'_>,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
@@ -106,7 +106,7 @@ impl AttributeValueRepository {
         .bind(r.label_en)
         .bind(r.swatch_hex)
         .bind(r.sort_order)
-        .execute(pool)
+        .execute(executor)
         .await?;
         Ok(())
     }

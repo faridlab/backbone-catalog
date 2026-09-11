@@ -5,15 +5,16 @@
 //! below hold the catalog write service's item SQL (4-layer rule: services orchestrate, repos hold
 //! SQL).
 //!
-//! Tenant-agnostic (ADR-0029): no statement here names a tenancy column. When the composing
-//! host mounts a request-scoped org fence, plain pool reads ride the request-dedicated
-//! scoped connection and see only in-scope rows; undecorated, they see the whole table.
+//! Tenant-agnostic (ADR-0029): no statement here names a tenancy column. Statements ride
+//! whatever executor the caller passes — write verbs pass their org-scoped transaction;
+//! request-path reads use the `*_scoped` helpers, which ride the composing host's
+//! request-dedicated connection when one is bound and the plain pool otherwise.
 //!
 //! Thin newtype over `backbone_orm::GenericCrudRepository<Item, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
 use rust_decimal::Decimal;
-use sqlx::{PgConnection, PgPool};
+use sqlx::{PgConnection, PgPool, Row};
 use uuid::Uuid;
 
 use crate::domain::entity::Item;
@@ -86,7 +87,7 @@ impl ItemRepository {
     /// not found.
     pub async fn find_by_scan_code(
         &self,
-        pool: &PgPool,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
         code: &str,
     ) -> Result<Option<ItemHit>, sqlx::Error> {
         let hit = sqlx::query_as::<_, ItemHit>(
@@ -97,21 +98,55 @@ impl ItemRepository {
                LIMIT 1"#,
         )
         .bind(code)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?;
         Ok(hit)
+    }
+
+    /// Scan-code lookup for the request path: rides the composing host's request-dedicated
+    /// connection when one is bound (so the org fence applies), plain pool otherwise.
+    /// Tenant-agnostic — the database fence owns isolation, this picks the lane.
+    pub async fn find_by_scan_code_scoped(
+        &self,
+        pool: &PgPool,
+        code: &str,
+    ) -> Result<Option<ItemHit>, sqlx::Error> {
+        let row = backbone_orm::org_scope::fetch_optional_row_scoped(
+            pool,
+            sqlx::query(
+                r#"SELECT id AS item_id, NULL::uuid AS variant_id, item_code, name, barcode, NULL::text AS sku
+                   FROM catalog.items
+                   WHERE (barcode = $1 OR item_code = $1)
+                     AND (metadata->>'deleted_at') IS NULL
+                   LIMIT 1"#,
+            )
+            .bind(code),
+        )
+        .await?;
+        Ok(row.map(|r| ItemHit {
+            item_id: r.get("item_id"),
+            variant_id: r.get("variant_id"),
+            item_code: r.get("item_code"),
+            name: r.get("name"),
+            barcode: r.get("barcode"),
+            sku: r.get("sku"),
+        }))
     }
 
     /// `EXISTS` probe for a live row (replaces the prior string-built `exists_in` helper in
     /// the write service). Tenant-agnostic: scoped by the caller's connection, never by a
     /// column here.
-    pub async fn exists_id(&self, pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
+    pub async fn exists_id(
+        &self,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
+        id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
         let found: Option<Uuid> = sqlx::query_scalar(
             "SELECT id FROM catalog.items \
              WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
         .bind(id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?;
         Ok(found.is_some())
     }
@@ -120,7 +155,7 @@ impl ItemRepository {
     /// the service can disambiguate barcode vs item_code duplicates.
     pub async fn insert_item(
         &self,
-        pool: &PgPool,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
         r: &NewItemRow<'_>,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
@@ -148,7 +183,7 @@ impl ItemRepository {
         .bind(r.standard_cost)
         .bind(r.tags)
         .bind(r.data)
-        .execute(pool)
+        .execute(executor)
         .await?;
         Ok(())
     }

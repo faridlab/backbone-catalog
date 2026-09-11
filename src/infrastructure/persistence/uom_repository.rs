@@ -5,9 +5,10 @@
 //! below hold the catalog write service's UOM SQL (4-layer rule: services orchestrate, repos hold
 //! SQL).
 //!
-//! Tenant-agnostic (ADR-0029): no statement here names a tenancy column. When the composing
-//! host mounts a request-scoped org fence, plain pool reads ride the request-dedicated
-//! scoped connection and see only in-scope rows; undecorated, they see the whole table.
+//! Tenant-agnostic (ADR-0029): no statement here names a tenancy column. Statements ride
+//! whatever executor the caller passes — the write verbs pass their org-scoped
+//! transaction, so the composing host's fence applies; on a plain pool (standalone
+//! deployment, tests) they see the whole table.
 //!
 //! Thin newtype over `backbone_orm::GenericCrudRepository<Uom, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
@@ -63,13 +64,17 @@ impl UomRepository {
     /// `EXISTS` probe for a live unit (replaces the prior string-built `exists_in` helper
     /// in the write service). Used for default_uom_id FK validation on create-item and
     /// parent-unit validation on tree writes.
-    pub async fn exists_id(&self, pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
+    pub async fn exists_id(
+        &self,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
+        id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
         let found: Option<Uuid> = sqlx::query_scalar(
             "SELECT id FROM catalog.uoms \
              WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
         .bind(id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?;
         Ok(found.is_some())
     }
@@ -78,7 +83,7 @@ impl UomRepository {
     /// Used to compute a child unit's stored factor at insert time.
     pub async fn find_factor(
         &self,
-        pool: &PgPool,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
         id: Uuid,
     ) -> Result<Option<Decimal>, sqlx::Error> {
         let factor: Option<Decimal> = sqlx::query_scalar(
@@ -86,7 +91,7 @@ impl UomRepository {
              WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
         .bind(id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?;
         Ok(factor)
     }
@@ -95,7 +100,7 @@ impl UomRepository {
     /// the service can disambiguate code duplicates.
     pub async fn insert_uom(
         &self,
-        pool: &PgPool,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
         r: &NewUomRow<'_>,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
@@ -112,7 +117,7 @@ impl UomRepository {
         .bind(r.relative_uom_id)
         .bind(r.relative_factor)
         .bind(r.factor)
-        .execute(pool)
+        .execute(executor)
         .await?;
         Ok(())
     }
@@ -127,7 +132,7 @@ impl UomRepository {
     /// are ever corrupt.
     pub async fn load_tree_chain(
         &self,
-        pool: &PgPool,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
         uom: Uuid,
     ) -> Result<Option<Vec<UomChainNode>>, sqlx::Error> {
         let rows: Vec<UomChainNode> = sqlx::query_as(
@@ -143,7 +148,7 @@ impl UomRepository {
                SELECT id, code, relative_uom_id, relative_factor, factor FROM chain"#,
         )
         .bind(uom)
-        .fetch_all(pool)
+        .fetch_all(executor)
         .await?;
         Ok(if rows.is_empty() { None } else { Some(rows) })
     }

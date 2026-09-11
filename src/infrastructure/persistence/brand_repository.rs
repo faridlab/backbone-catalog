@@ -55,13 +55,13 @@ pub struct NewBrandRow<'a> {
 impl BrandRepository {
     /// `EXISTS` probe for a live row (replaces the prior string-built `exists_in` helper
     /// in the write service). Used for optional `brand_id` FK validation on create-item.
-    pub async fn exists_id(&self, pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
+    pub async fn exists_id(&self, executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>, id: Uuid) -> Result<bool, sqlx::Error> {
         let found: Option<Uuid> = sqlx::query_scalar(
             "SELECT id FROM catalog.brands \
              WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
         .bind(id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?;
         Ok(found.is_some())
     }
@@ -70,7 +70,7 @@ impl BrandRepository {
     /// so the service can disambiguate code duplicates.
     pub async fn insert_brand(
         &self,
-        pool: &PgPool,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
         r: &NewBrandRow<'_>,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
@@ -85,7 +85,7 @@ impl BrandRepository {
         .bind(r.description)
         .bind(r.logo_url)
         .bind(r.sort_order)
-        .execute(pool)
+        .execute(executor)
         .await?;
         Ok(())
     }

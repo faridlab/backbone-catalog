@@ -227,17 +227,23 @@ async fn ambient_org_scope_drives_module_reads() {
         .unwrap();
     let svc = ItemGroupService::with_repository(Arc::new(ItemGroupRepository::new(admin.clone())));
 
-    // Inside the scope: bound, visible to module code, the read completes.
-    let (legacy_inside, listed) = scoped(&admin, company, async {
+    // Inside the scope: bound, visible to module code, the reads complete. The list call
+    // proves completion only — its page ordering is arbitrary on a shared scratch DB —
+    // so the seeded row is asserted by id.
+    let (legacy_inside, seeded) = scoped(&admin, company, async {
         let scope = backbone_orm::org_scope::current_org_scope()
             .expect("the ambient scope must be bound inside");
-        let listed = svc.list(1, 100, Default::default()).await.expect("list completes");
-        (scope.legacy_company_id(), listed)
+        let _ = svc.list(1, 100, Default::default()).await.expect("list completes");
+        let seeded = svc
+            .find_by_id(&group.to_string())
+            .await
+            .expect("find completes");
+        (scope.legacy_company_id(), seeded)
     })
     .await;
     assert_eq!(legacy_inside, Some(company));
     assert!(
-        listed.0.iter().any(|g| *g.entity_id() == group),
+        seeded.is_some(),
         "the owner's read must see its own seeded group"
     );
 

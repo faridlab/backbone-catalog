@@ -52,13 +52,13 @@ pub struct NewAttributeRow<'a> {
 impl AttributeRepository {
     /// `EXISTS` probe for a live row (replaces the prior string-built `exists_in` helper
     /// in the write service). Used for `attribute_id` FK validation on create-attribute-value.
-    pub async fn exists_id(&self, pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
+    pub async fn exists_id(&self, executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>, id: Uuid) -> Result<bool, sqlx::Error> {
         let found: Option<Uuid> = sqlx::query_scalar(
             "SELECT id FROM catalog.attributes \
              WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
         .bind(id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?;
         Ok(found.is_some())
     }
@@ -67,7 +67,7 @@ impl AttributeRepository {
     /// axis from an unknown value).
     pub async fn find_id_by_code(
         &self,
-        pool: &PgPool,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
         code: &str,
     ) -> Result<Option<Uuid>, sqlx::Error> {
         let id: Option<Uuid> = sqlx::query_scalar(
@@ -75,7 +75,7 @@ impl AttributeRepository {
              WHERE code=$1 AND (metadata->>'deleted_at') IS NULL",
         )
         .bind(code)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?;
         Ok(id)
     }
@@ -84,7 +84,7 @@ impl AttributeRepository {
     /// `sqlx::Error` so the service can disambiguate code duplicates.
     pub async fn insert_attribute(
         &self,
-        pool: &PgPool,
+        executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
         r: &NewAttributeRow<'_>,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
@@ -95,7 +95,7 @@ impl AttributeRepository {
         .bind(r.code)
         .bind(r.name)
         .bind(r.attribute_type)
-        .execute(pool)
+        .execute(executor)
         .await?;
         Ok(())
     }
