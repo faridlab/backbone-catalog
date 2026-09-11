@@ -5,10 +5,13 @@
 //! below hold the catalog write service's item-group SQL (4-layer rule: services orchestrate, repos
 //! hold SQL).
 //!
+//! Tenant-agnostic (ADR-0029): no statement here names a tenancy column. When the composing
+//! host mounts a request-scoped org fence, plain pool reads ride the request-dedicated
+//! scoped connection and see only in-scope rows; undecorated, they see the whole table.
+//!
 //! Thin newtype over `backbone_orm::GenericCrudRepository<ItemGroup, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
-use backbone_orm::company_scope;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -40,7 +43,6 @@ impl ItemGroupRepository {
 /// The exact row a validated item-group insert writes.
 pub struct NewItemGroupRow<'a> {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub code: &'a str,
     pub name: &'a str,
     pub parent_id: Option<Uuid>,
@@ -49,51 +51,37 @@ pub struct NewItemGroupRow<'a> {
 
 /// Catalog item-group SQL. Lives here (not in the service) per the module's 4-layer rule.
 impl ItemGroupRepository {
-    /// `EXISTS` probe filtered by company (replaces the prior string-built
-    /// `exists_in("item_groups", id, company)` helper in the write service). Used for both
-    /// `parent_id` validation on create-item-group and `item_group_id` FK validation on create-item.
-    pub async fn exists_id_in_company(
-        &self,
-        pool: &PgPool,
-        id: Uuid,
-        company: Uuid,
-    ) -> Result<bool, sqlx::Error> {
-        let found: Option<Uuid> = company_scope::fetch_optional_scalar_scoped(
-            pool,
-            sqlx::query_scalar(
-                "SELECT id FROM catalog.item_groups \
-                 WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
-            )
-            .bind(id)
-            .bind(company),
+    /// `EXISTS` probe for a live row (replaces the prior string-built `exists_in` helper
+    /// in the write service). Used for both `parent_id` validation on create-item-group and
+    /// `item_group_id` FK validation on create-item.
+    pub async fn exists_id(&self, pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
+        let found: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM catalog.item_groups \
+             WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
+        .bind(id)
+        .fetch_optional(pool)
         .await?;
         Ok(found.is_some())
     }
 
-    /// Insert a validated item-group row. The statement runs through the `company_scope` execute
-    /// helper, which binds `app.company_id` so the RLS `WITH CHECK` on `catalog.item_groups`
-    /// accepts the row (request-dedicated connection when the host mounts one, else
-    /// transaction-locally from the ambient company scope). Unique-constraint errors propagate as
+    /// Insert a validated item-group row. Unique-constraint errors propagate as
     /// `sqlx::Error` so the service can disambiguate code duplicates.
     pub async fn insert_item_group(
         &self,
         pool: &PgPool,
         r: &NewItemGroupRow<'_>,
     ) -> Result<(), sqlx::Error> {
-        company_scope::execute_scoped(
-            pool,
-            sqlx::query(
-                r#"INSERT INTO catalog.item_groups (id, company_id, code, name, parent_id, is_group, status)
-                   VALUES ($1,$2,$3,$4,$5,$6,'active'::catalog_status)"#,
-            )
-            .bind(r.id)
-            .bind(r.company_id)
-            .bind(r.code)
-            .bind(r.name)
-            .bind(r.parent_id)
-            .bind(r.is_group),
+        sqlx::query(
+            r#"INSERT INTO catalog.item_groups (id, code, name, parent_id, is_group, status)
+               VALUES ($1,$2,$3,$4,$5,'active'::catalog_status)"#,
         )
+        .bind(r.id)
+        .bind(r.code)
+        .bind(r.name)
+        .bind(r.parent_id)
+        .bind(r.is_group)
+        .execute(pool)
         .await?;
         Ok(())
     }

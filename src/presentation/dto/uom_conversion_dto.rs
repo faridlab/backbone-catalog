@@ -34,9 +34,6 @@ use crate::domain::entity::AuditMetadata;
 #[serde(rename_all = "camelCase")]
 pub struct CreateUomConversionDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "from_uom_id")]
     pub from_uom_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
@@ -58,9 +55,6 @@ pub struct CreateUomConversionDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateUomConversionDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "from_uom_id")]
     pub from_uom_id: Uuid,
@@ -84,9 +78,6 @@ pub struct UpdateUomConversionDto {
 #[serde(rename_all = "camelCase")]
 pub struct PatchUomConversionDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "from_uom_id")]
     pub from_uom_id: Option<Uuid>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
@@ -99,7 +90,7 @@ pub struct PatchUomConversionDto {
 impl PatchUomConversionDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.from_uom_id.is_some() || self.to_uom_id.is_some() || self.factor.is_some()
+        self.from_uom_id.is_some() || self.to_uom_id.is_some() || self.factor.is_some()
     }
 }
 
@@ -117,8 +108,6 @@ impl PatchUomConversionDto {
 pub struct UomConversionResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub from_uom_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
@@ -181,9 +170,9 @@ impl UomConversionListResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct UomConversionSummaryDto {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub from_uom_id: Uuid,
     pub to_uom_id: Uuid,
+    pub factor: Decimal,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -195,7 +184,6 @@ impl From<UomConversion> for UomConversionResponseDto {
     fn from(entity: UomConversion) -> Self {
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             from_uom_id: entity.from_uom_id,
             to_uom_id: entity.to_uom_id,
             factor: entity.factor,
@@ -209,9 +197,9 @@ impl From<UomConversion> for UomConversionSummaryDto {
         let created_at = backbone_core::PersistentEntity::created_at(&entity);
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             from_uom_id: entity.from_uom_id,
             to_uom_id: entity.to_uom_id,
+            factor: entity.factor,
             created_at,
         }
     }
@@ -221,7 +209,6 @@ impl From<CreateUomConversionDto> for UomConversion {
     fn from(dto: CreateUomConversionDto) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id: dto.company_id,
             from_uom_id: dto.from_uom_id,
             to_uom_id: dto.to_uom_id,
             factor: dto.factor,
@@ -234,7 +221,6 @@ impl From<&UomConversion> for UomConversionResponseDto {
     fn from(entity: &UomConversion) -> Self {
         Self {
             id: entity.id.clone(),
-            company_id: entity.company_id.clone(),
             from_uom_id: entity.from_uom_id.clone(),
             to_uom_id: entity.to_uom_id.clone(),
             factor: entity.factor.clone(),
@@ -251,7 +237,6 @@ impl backbone_core::FromCreateDto<CreateUomConversionDto> for UomConversion {
 
 impl backbone_core::ApplyUpdateDto<UpdateUomConversionDto> for UomConversion {
     fn apply_update(mut self, dto: UpdateUomConversionDto) -> backbone_core::ServiceResult<Self> {
-        self.company_id = dto.company_id;
         self.from_uom_id = dto.from_uom_id;
         self.to_uom_id = dto.to_uom_id;
         self.factor = dto.factor;

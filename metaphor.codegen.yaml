@@ -26,7 +26,7 @@ user_owned:
   - "src/lib.rs"
   - "src/routes/mod.rs"
   # Repositories own the hand-written catalog SQL (item/variant lookups, validated inserts,
-  # in-tx variant lifecycle, company-fenced EXISTS probes) orchestrated by catalog_write_service.
+  # in-tx variant lifecycle, tenant-agnostic EXISTS probes) orchestrated by catalog_write_service.
   # Declared here — not renamed with a `_custom` suffix — so the generator skips them wholesale;
   # this declaration is what makes editing them legitimate. Mirrors the backbone-banking pattern
   # (exchange_rate_repository.rs, fx_gain_loss_repository.rs).
@@ -40,11 +40,13 @@ user_owned:
   - "src/infrastructure/persistence/brand_repository.rs"
 
   # Behavior tests (the golden cases / oracle) + route-level integrity probes + BDD features
-  # + codegen-invariant guards (hand-written safety gates that regen would otherwise strip).
+  # + codegen-invariant guards (hand-written safety gates that regen would otherwise strip)
+  # + the tenancy posture probe (half-fence pin: RLS flags armed, module ships no policy).
   - "tests/catalog_golden_cases.rs"
   - "tests/item_lookup.rs"
   - "tests/integrity_probes.rs"
   - "tests/codegen_invariants.rs"
+  - "tests/tenancy_posture_probe.rs"
   - "tests/features/**"
 
   # UoM parent-store tree (ADR-0023): domain conversion primitive (chain assembly,
@@ -64,6 +66,11 @@ user_owned:
   - "migrations/20260825000001_add_standard_cost_to_item.down.sql"
   - "migrations/20260906000001_uom_protected_units.up.sql"
   - "migrations/20260906000001_uom_protected_units.down.sql"
+  # The guarded company-artifact strip — the strip's ordering guard is hand-authored logic
+  # (decorator-first: never drop the last tenancy key on a populated table), and the UoM
+  # tree's company-keyed FK is re-keyed by hand around the column drop.
+  - "migrations/20260911130000_strip_tenancy.up.sql"
+  - "migrations/20260911130000_strip_tenancy.down.sql"
 
   # Hand-authored module documentation.
   - "docs/**"

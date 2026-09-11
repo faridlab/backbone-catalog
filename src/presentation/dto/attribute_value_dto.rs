@@ -34,9 +34,6 @@ use crate::domain::entity::CatalogStatus;
 #[serde(rename_all = "camelCase")]
 pub struct CreateAttributeValueDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "attribute_id")]
     pub attribute_id: Uuid,
     #[cfg_attr(feature = "validation", validate(length(max = 40)))]
@@ -73,9 +70,6 @@ pub struct CreateAttributeValueDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateAttributeValueDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "attribute_id")]
     pub attribute_id: Uuid,
@@ -114,9 +108,6 @@ pub struct UpdateAttributeValueDto {
 #[serde(rename_all = "camelCase")]
 pub struct PatchAttributeValueDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "attribute_id")]
     pub attribute_id: Option<Uuid>,
     #[cfg_attr(feature = "validation", validate(length(max = 40)))]
@@ -146,7 +137,7 @@ pub struct PatchAttributeValueDto {
 impl PatchAttributeValueDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.attribute_id.is_some() || self.code.is_some() || self.label.is_some() || self.label_en.is_some() || self.swatch_hex.is_some() || self.icon.is_some() || self.sort_order.is_some() || self.status.is_some()
+        self.attribute_id.is_some() || self.code.is_some() || self.label.is_some() || self.label_en.is_some() || self.swatch_hex.is_some() || self.icon.is_some() || self.sort_order.is_some() || self.status.is_some()
     }
 }
 
@@ -164,8 +155,6 @@ impl PatchAttributeValueDto {
 pub struct AttributeValueResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub attribute_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
@@ -235,9 +224,9 @@ impl AttributeValueListResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct AttributeValueSummaryDto {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub attribute_id: Uuid,
     pub code: String,
+    pub label: String,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -249,7 +238,6 @@ impl From<AttributeValue> for AttributeValueResponseDto {
     fn from(entity: AttributeValue) -> Self {
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             attribute_id: entity.attribute_id,
             code: entity.code,
             label: entity.label,
@@ -268,9 +256,9 @@ impl From<AttributeValue> for AttributeValueSummaryDto {
         let created_at = backbone_core::PersistentEntity::created_at(&entity);
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             attribute_id: entity.attribute_id,
             code: entity.code,
+            label: entity.label,
             created_at,
         }
     }
@@ -280,7 +268,6 @@ impl From<CreateAttributeValueDto> for AttributeValue {
     fn from(dto: CreateAttributeValueDto) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id: dto.company_id,
             attribute_id: dto.attribute_id,
             code: dto.code,
             label: dto.label,
@@ -298,7 +285,6 @@ impl From<&AttributeValue> for AttributeValueResponseDto {
     fn from(entity: &AttributeValue) -> Self {
         Self {
             id: entity.id.clone(),
-            company_id: entity.company_id.clone(),
             attribute_id: entity.attribute_id.clone(),
             code: entity.code.clone(),
             label: entity.label.clone(),
@@ -320,7 +306,6 @@ impl backbone_core::FromCreateDto<CreateAttributeValueDto> for AttributeValue {
 
 impl backbone_core::ApplyUpdateDto<UpdateAttributeValueDto> for AttributeValue {
     fn apply_update(mut self, dto: UpdateAttributeValueDto) -> backbone_core::ServiceResult<Self> {
-        self.company_id = dto.company_id;
         self.attribute_id = dto.attribute_id;
         self.code = dto.code;
         self.label = dto.label;

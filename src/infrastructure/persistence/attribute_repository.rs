@@ -5,10 +5,13 @@
 //! below hold the catalog write service's attribute SQL (4-layer rule: services orchestrate, repos
 //! hold SQL).
 //!
+//! Tenant-agnostic (ADR-0029): no statement here names a tenancy column. When the composing
+//! host mounts a request-scoped org fence, plain pool reads ride the request-dedicated
+//! scoped connection and see only in-scope rows; undecorated, they see the whole table.
+//!
 //! Thin newtype over `backbone_orm::GenericCrudRepository<Attribute, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
-use backbone_orm::company_scope;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -40,7 +43,6 @@ impl AttributeRepository {
 /// The exact row a validated attribute insert writes.
 pub struct NewAttributeRow<'a> {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub code: &'a str,
     pub name: &'a str,
     pub attribute_type: &'a str,
@@ -48,70 +50,52 @@ pub struct NewAttributeRow<'a> {
 
 /// Catalog attribute SQL. Lives here (not in the service) per the module's 4-layer rule.
 impl AttributeRepository {
-    /// `EXISTS` probe filtered by company (replaces the prior string-built
-    /// `exists_in("attributes", id, company)` helper in the write service). Used for `attribute_id`
-    /// FK validation on create-attribute-value.
-    pub async fn exists_id_in_company(
-        &self,
-        pool: &PgPool,
-        id: Uuid,
-        company: Uuid,
-    ) -> Result<bool, sqlx::Error> {
-        let found: Option<Uuid> = company_scope::fetch_optional_scalar_scoped(
-            pool,
-            sqlx::query_scalar(
-                "SELECT id FROM catalog.attributes \
-                 WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
-            )
-            .bind(id)
-            .bind(company),
+    /// `EXISTS` probe for a live row (replaces the prior string-built `exists_in` helper
+    /// in the write service). Used for `attribute_id` FK validation on create-attribute-value.
+    pub async fn exists_id(&self, pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
+        let found: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM catalog.attributes \
+             WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
+        .bind(id)
+        .fetch_optional(pool)
         .await?;
         Ok(found.is_some())
     }
 
     /// Resolve an attribute id by code (used by create-item-variant to disambiguate an unknown
-    /// axis from an unknown value). `company_id = $2` only — the company is on the caller's scope.
+    /// axis from an unknown value).
     pub async fn find_id_by_code(
         &self,
         pool: &PgPool,
         code: &str,
-        company: Uuid,
     ) -> Result<Option<Uuid>, sqlx::Error> {
-        let id: Option<Uuid> = company_scope::fetch_optional_scalar_scoped(
-            pool,
-            sqlx::query_scalar(
-                "SELECT id FROM catalog.attributes \
-                 WHERE code=$1 AND company_id=$2 AND (metadata->>'deleted_at') IS NULL",
-            )
-            .bind(code)
-            .bind(company),
+        let id: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM catalog.attributes \
+             WHERE code=$1 AND (metadata->>'deleted_at') IS NULL",
         )
+        .bind(code)
+        .fetch_optional(pool)
         .await?;
         Ok(id)
     }
 
-    /// Insert a validated attribute row. The statement runs through the `company_scope` execute
-    /// helper, which binds `app.company_id` so the RLS `WITH CHECK` on `catalog.attributes`
-    /// accepts the row. Unique-constraint errors propagate as `sqlx::Error` so the service can
-    /// disambiguate code duplicates.
+    /// Insert a validated attribute row. Unique-constraint errors propagate as
+    /// `sqlx::Error` so the service can disambiguate code duplicates.
     pub async fn insert_attribute(
         &self,
         pool: &PgPool,
         r: &NewAttributeRow<'_>,
     ) -> Result<(), sqlx::Error> {
-        company_scope::execute_scoped(
-            pool,
-            sqlx::query(
-                r#"INSERT INTO catalog.attributes (id, company_id, code, name, attribute_type, status)
-                   VALUES ($1,$2,$3,$4,$5::attribute_type,'active'::catalog_status)"#,
-            )
-            .bind(r.id)
-            .bind(r.company_id)
-            .bind(r.code)
-            .bind(r.name)
-            .bind(r.attribute_type),
+        sqlx::query(
+            r#"INSERT INTO catalog.attributes (id, code, name, attribute_type, status)
+               VALUES ($1,$2,$3,$4::attribute_type,'active'::catalog_status)"#,
         )
+        .bind(r.id)
+        .bind(r.code)
+        .bind(r.name)
+        .bind(r.attribute_type)
+        .execute(pool)
         .await?;
         Ok(())
     }

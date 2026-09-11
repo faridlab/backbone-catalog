@@ -5,10 +5,13 @@
 //! below hold the catalog write service's item SQL (4-layer rule: services orchestrate, repos hold
 //! SQL).
 //!
+//! Tenant-agnostic (ADR-0029): no statement here names a tenancy column. When the composing
+//! host mounts a request-scoped org fence, plain pool reads ride the request-dedicated
+//! scoped connection and see only in-scope rows; undecorated, they see the whole table.
+//!
 //! Thin newtype over `backbone_orm::GenericCrudRepository<Item, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
-use backbone_orm::company_scope;
 use rust_decimal::Decimal;
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
@@ -56,7 +59,6 @@ pub struct ItemHit {
 /// The exact row a validated item insert writes.
 pub struct NewItemRow<'a> {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub item_code: &'a str,
     pub name: &'a str,
     pub description: Option<&'a str>,
@@ -78,102 +80,81 @@ pub struct NewItemRow<'a> {
 
 /// Catalog item SQL. Lives here (not in the service) per the module's 4-layer rule.
 impl ItemRepository {
-    /// Resolve a scanned code (barcode OR item_code) to the base item. Per-company (ADR-0010 B1):
-    /// `company` is the caller's company (from `current_company()`, set by the request scope) bound
-    /// into the lookup as defense-in-depth on top of the RLS fence, so a missed scope still returns
-    /// nothing instead of leaking another tenant's item. `company = None` admits rows when no scope
-    /// is set (matches the prior bare-pool `fetch_optional` behavior).
+    /// Resolve a scanned code (barcode OR item_code) to the base item. Tenant-agnostic: the
+    /// statement runs plain on the caller's pool — under a composed host's org request scope
+    /// it rides the request-dedicated scoped connection, so out-of-scope items simply are
+    /// not found.
     pub async fn find_by_scan_code(
         &self,
         pool: &PgPool,
         code: &str,
-        company: Option<Uuid>,
     ) -> Result<Option<ItemHit>, sqlx::Error> {
-        let hit = company_scope::fetch_optional_scoped(
-            pool,
-            sqlx::query_as::<_, ItemHit>(
-                r#"SELECT id AS item_id, NULL::uuid AS variant_id, item_code, name, barcode, NULL::text AS sku
-                   FROM catalog.items
-                   WHERE (barcode = $1 OR item_code = $1)
-                     AND ($2::uuid IS NULL OR company_id = $2)
-                     AND (metadata->>'deleted_at') IS NULL
-                   LIMIT 1"#,
-            )
-            .bind(code)
-            .bind(company),
+        let hit = sqlx::query_as::<_, ItemHit>(
+            r#"SELECT id AS item_id, NULL::uuid AS variant_id, item_code, name, barcode, NULL::text AS sku
+               FROM catalog.items
+               WHERE (barcode = $1 OR item_code = $1)
+                 AND (metadata->>'deleted_at') IS NULL
+               LIMIT 1"#,
         )
+        .bind(code)
+        .fetch_optional(pool)
         .await?;
         Ok(hit)
     }
 
-    /// `EXISTS` probe filtered by company (replaces the prior string-built
-    /// `exists_in("items", id, company)` helper in the write service). `company_id = $2` is the
-    /// only fence (no `IS NULL OR …` here): the validated writes that call this always have a
-    /// concrete company on the DTO.
-    pub async fn exists_id_in_company(
-        &self,
-        pool: &PgPool,
-        id: Uuid,
-        company: Uuid,
-    ) -> Result<bool, sqlx::Error> {
-        let found: Option<Uuid> = company_scope::fetch_optional_scalar_scoped(
-            pool,
-            sqlx::query_scalar(
-                "SELECT id FROM catalog.items \
-                 WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
-            )
-            .bind(id)
-            .bind(company),
+    /// `EXISTS` probe for a live row (replaces the prior string-built `exists_in` helper in
+    /// the write service). Tenant-agnostic: scoped by the caller's connection, never by a
+    /// column here.
+    pub async fn exists_id(&self, pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
+        let found: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM catalog.items \
+             WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
+        .bind(id)
+        .fetch_optional(pool)
         .await?;
         Ok(found.is_some())
     }
 
-    /// Insert a validated item row. The statement runs through the `company_scope` execute helper,
-    /// which binds `app.company_id` so the RLS `WITH CHECK` on `catalog.items` accepts the row;
-    /// the explicit `company_id` in the VALUES list is defense-in-depth on top of the RLS fence.
-    /// Unique-constraint errors propagate as `sqlx::Error` so the service can disambiguate
-    /// barcode vs item_code duplicates.
+    /// Insert a validated item row. Unique-constraint errors propagate as `sqlx::Error` so
+    /// the service can disambiguate barcode vs item_code duplicates.
     pub async fn insert_item(
         &self,
         pool: &PgPool,
         r: &NewItemRow<'_>,
     ) -> Result<(), sqlx::Error> {
-        company_scope::execute_scoped(
-            pool,
-            sqlx::query(
-                r#"INSERT INTO catalog.items
-                    (id, company_id, item_code, name, description, barcode, brand_id, item_group_id,
-                     default_uom_id, item_type, is_sales_item, is_purchase_item, is_stock_item,
-                     hsn_code, is_taxable, weight_per_unit, standard_cost, tags, data, status)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::item_type,$11,$12,$13,$14,$15,$16,$17,$18,$19,'active'::catalog_status)"#,
-            )
-            .bind(r.id)
-            .bind(r.company_id)
-            .bind(r.item_code)
-            .bind(r.name)
-            .bind(r.description)
-            .bind(r.barcode)
-            .bind(r.brand_id)
-            .bind(r.item_group_id)
-            .bind(r.default_uom_id)
-            .bind(r.item_type)
-            .bind(r.is_sales_item)
-            .bind(r.is_purchase_item)
-            .bind(r.is_stock_item)
-            .bind(r.hsn_code)
-            .bind(r.is_taxable)
-            .bind(r.weight_per_unit)
-            .bind(r.standard_cost)
-            .bind(r.tags)
-            .bind(r.data),
+        sqlx::query(
+            r#"INSERT INTO catalog.items
+                (id, item_code, name, description, barcode, brand_id, item_group_id,
+                 default_uom_id, item_type, is_sales_item, is_purchase_item, is_stock_item,
+                 hsn_code, is_taxable, weight_per_unit, standard_cost, tags, data, status)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::item_type,$10,$11,$12,$13,$14,$15,$16,$17,$18,'active'::catalog_status)"#,
         )
+        .bind(r.id)
+        .bind(r.item_code)
+        .bind(r.name)
+        .bind(r.description)
+        .bind(r.barcode)
+        .bind(r.brand_id)
+        .bind(r.item_group_id)
+        .bind(r.default_uom_id)
+        .bind(r.item_type)
+        .bind(r.is_sales_item)
+        .bind(r.is_purchase_item)
+        .bind(r.is_stock_item)
+        .bind(r.hsn_code)
+        .bind(r.is_taxable)
+        .bind(r.weight_per_unit)
+        .bind(r.standard_cost)
+        .bind(r.tags)
+        .bind(r.data)
+        .execute(pool)
         .await?;
         Ok(())
     }
 
     /// Flip `has_variants = TRUE` on the item (in-tx; called from the variant-create tx after the
-    /// variant row is inserted). The caller has already bound the company on `conn`.
+    /// variant row is inserted).
     pub async fn set_has_variants_true(
         &self,
         conn: &mut PgConnection,
@@ -186,9 +167,8 @@ impl ItemRepository {
         Ok(())
     }
 
-    /// Read an item's current lifecycle status (in-tx; the caller has already bound the company,
-    /// so RLS scopes the lookup — an item in another tenant simply isn't found). Used by the
-    /// validated status-transition path to enforce the CatalogStatus state machine.
+    /// Read an item's current lifecycle status (in-tx). Used by the validated
+    /// status-transition path to enforce the CatalogStatus state machine.
     pub async fn find_status(
         &self,
         conn: &mut PgConnection,
@@ -200,8 +180,7 @@ impl ItemRepository {
             .await?)
     }
 
-    /// Set an item's lifecycle status (in-tx; the caller has already bound the company). RLS
-    /// WITH CHECK ensures the write only touches an item owned by the bound tenant.
+    /// Set an item's lifecycle status (in-tx).
     pub async fn set_status(
         &self,
         conn: &mut PgConnection,
@@ -217,7 +196,7 @@ impl ItemRepository {
     }
 
     /// Flip `has_variants = FALSE` on the item (in-tx; called from the variant-delete tx when no
-    /// live variants remain). The caller has already bound the company on `conn`.
+    /// live variants remain).
     pub async fn set_has_variants_false(
         &self,
         conn: &mut PgConnection,

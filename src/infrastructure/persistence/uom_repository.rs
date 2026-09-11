@@ -5,10 +5,13 @@
 //! below hold the catalog write service's UOM SQL (4-layer rule: services orchestrate, repos hold
 //! SQL).
 //!
+//! Tenant-agnostic (ADR-0029): no statement here names a tenancy column. When the composing
+//! host mounts a request-scoped org fence, plain pool reads ride the request-dedicated
+//! scoped connection and see only in-scope rows; undecorated, they see the whole table.
+//!
 //! Thin newtype over `backbone_orm::GenericCrudRepository<Uom, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
-use backbone_orm::company_scope;
 use rust_decimal::Decimal;
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
@@ -42,7 +45,6 @@ impl UomRepository {
 /// The exact row a validated UOM insert writes.
 pub struct NewUomRow<'a> {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub code: &'a str,
     pub name: &'a str,
     pub uom_type: &'a str,
@@ -58,84 +60,66 @@ pub struct NewUomRow<'a> {
 
 /// Catalog UOM SQL. Lives here (not in the service) per the module's 4-layer rule.
 impl UomRepository {
-    /// `EXISTS` probe filtered by company (replaces the prior string-built
-    /// `exists_in("uoms", id, company)` helper in the write service). Used for default_uom_id FK
-    /// validation on create-item and parent-unit validation on tree writes.
-    pub async fn exists_id_in_company(
-        &self,
-        pool: &PgPool,
-        id: Uuid,
-        company: Uuid,
-    ) -> Result<bool, sqlx::Error> {
-        let found: Option<Uuid> = company_scope::fetch_optional_scalar_scoped(
-            pool,
-            sqlx::query_scalar(
-                "SELECT id FROM catalog.uoms \
-                 WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
-            )
-            .bind(id)
-            .bind(company),
+    /// `EXISTS` probe for a live unit (replaces the prior string-built `exists_in` helper
+    /// in the write service). Used for default_uom_id FK validation on create-item and
+    /// parent-unit validation on tree writes.
+    pub async fn exists_id(&self, pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
+        let found: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM catalog.uoms \
+             WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
+        .bind(id)
+        .fetch_optional(pool)
         .await?;
         Ok(found.is_some())
     }
 
-    /// Stored effective factor of one live unit (`None` if the unit does not exist in the
-    /// company). Used to compute a child unit's stored factor at insert time.
+    /// Stored effective factor of one live unit (`None` if the unit does not exist).
+    /// Used to compute a child unit's stored factor at insert time.
     pub async fn find_factor(
         &self,
         pool: &PgPool,
         id: Uuid,
-        company: Uuid,
     ) -> Result<Option<Decimal>, sqlx::Error> {
-        let factor: Option<Decimal> = company_scope::fetch_optional_scalar_scoped(
-            pool,
-            sqlx::query_scalar(
-                "SELECT factor FROM catalog.uoms \
-                 WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
-            )
-            .bind(id)
-            .bind(company),
+        let factor: Option<Decimal> = sqlx::query_scalar(
+            "SELECT factor FROM catalog.uoms \
+             WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
+        .bind(id)
+        .fetch_optional(pool)
         .await?;
         Ok(factor)
     }
 
-    /// Insert a validated UOM row. The statement runs through the `company_scope` execute helper,
-    /// which binds `app.company_id` (on the request-dedicated connection when the host mounts one,
-    /// else transaction-locally from the ambient company scope) so the RLS `WITH CHECK` on
-    /// `catalog.uoms` accepts the row. Unique-constraint errors propagate as `sqlx::Error` so the
-    /// service can disambiguate code duplicates.
+    /// Insert a validated UOM row. Unique-constraint errors propagate as `sqlx::Error` so
+    /// the service can disambiguate code duplicates.
     pub async fn insert_uom(
         &self,
         pool: &PgPool,
         r: &NewUomRow<'_>,
     ) -> Result<(), sqlx::Error> {
-        company_scope::execute_scoped(
-            pool,
-            sqlx::query(
-                r#"INSERT INTO catalog.uoms
-                       (id, company_id, code, name, uom_type, decimal_places,
-                        relative_uom_id, relative_factor, factor, status)
-                   VALUES ($1,$2,$3,$4,$5::uom_type,$6,$7,$8,$9,'active'::catalog_status)"#,
-            )
-            .bind(r.id)
-            .bind(r.company_id)
-            .bind(r.code)
-            .bind(r.name)
-            .bind(r.uom_type)
-            .bind(r.decimal_places)
-            .bind(r.relative_uom_id)
-            .bind(r.relative_factor)
-            .bind(r.factor),
+        sqlx::query(
+            r#"INSERT INTO catalog.uoms
+                   (id, code, name, uom_type, decimal_places,
+                    relative_uom_id, relative_factor, factor, status)
+               VALUES ($1,$2,$3,$4::uom_type,$5,$6,$7,$8,'active'::catalog_status)"#,
         )
+        .bind(r.id)
+        .bind(r.code)
+        .bind(r.name)
+        .bind(r.uom_type)
+        .bind(r.decimal_places)
+        .bind(r.relative_uom_id)
+        .bind(r.relative_factor)
+        .bind(r.factor)
+        .execute(pool)
         .await?;
         Ok(())
     }
 
     /// Load `uom` together with its full ancestor chain up to (and including) its tree root.
     ///
-    /// The leaf must be a live row of `company` (`None` otherwise); ancestors are loaded
+    /// The leaf must be a live row (`None` otherwise); ancestors are loaded
     /// regardless of their soft-delete state, so archiving a unit never makes its subtree
     /// unconvertible. Rows come back in arbitrary SQL order — the caller assembles them into
     /// an ordered [`UomChain`] with [`UomChain::from_rows`], which fails loudly on cycles
@@ -144,50 +128,44 @@ impl UomRepository {
     pub async fn load_tree_chain(
         &self,
         pool: &PgPool,
-        company: Uuid,
         uom: Uuid,
     ) -> Result<Option<Vec<UomChainNode>>, sqlx::Error> {
-        let rows: Vec<UomChainNode> = company_scope::fetch_all_scoped(
-            pool,
-            sqlx::query_as(
-                r#"WITH RECURSIVE chain AS (
-                       SELECT id, code, relative_uom_id, relative_factor, factor
-                       FROM catalog.uoms
-                       WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL
-                       UNION
-                       SELECT p.id, p.code, p.relative_uom_id, p.relative_factor, p.factor
-                       FROM catalog.uoms p
-                       JOIN chain ON p.id = chain.relative_uom_id
-                   )
-                   SELECT id, code, relative_uom_id, relative_factor, factor FROM chain"#,
-            )
-            .bind(uom)
-            .bind(company),
+        let rows: Vec<UomChainNode> = sqlx::query_as(
+            r#"WITH RECURSIVE chain AS (
+                   SELECT id, code, relative_uom_id, relative_factor, factor
+                   FROM catalog.uoms
+                   WHERE id = $1 AND (metadata->>'deleted_at') IS NULL
+                   UNION
+                   SELECT p.id, p.code, p.relative_uom_id, p.relative_factor, p.factor
+                   FROM catalog.uoms p
+                   JOIN chain ON p.id = chain.relative_uom_id
+               )
+               SELECT id, code, relative_uom_id, relative_factor, factor FROM chain"#,
         )
+        .bind(uom)
+        .fetch_all(pool)
         .await?;
         Ok(if rows.is_empty() { None } else { Some(rows) })
     }
 
-    /// Is `candidate` the unit itself or one of its descendants in the company's tree?
+    /// Is `candidate` the unit itself or one of its descendants in the tree?
     /// The cycle guard for re-parenting: a unit must never point at its own subtree.
-    /// Runs on the caller's transaction connection (already company-bound).
+    /// Runs on the caller's transaction connection.
     pub async fn is_self_or_descendant(
         &self,
         conn: &mut PgConnection,
-        company: Uuid,
         uom: Uuid,
         candidate: Uuid,
     ) -> Result<bool, sqlx::Error> {
         let hit: bool = sqlx::query_scalar(
             r#"WITH RECURSIVE subtree AS (
-                   SELECT id FROM catalog.uoms WHERE id = $1 AND company_id = $2
+                   SELECT id FROM catalog.uoms WHERE id = $1
                    UNION
                    SELECT c.id FROM catalog.uoms c JOIN subtree s ON c.relative_uom_id = s.id
                )
-               SELECT EXISTS (SELECT 1 FROM subtree WHERE id = $3)"#,
+               SELECT EXISTS (SELECT 1 FROM subtree WHERE id = $2)"#,
         )
         .bind(uom)
-        .bind(company)
         .bind(candidate)
         .fetch_one(conn)
         .await?;
@@ -195,22 +173,20 @@ impl UomRepository {
     }
 
     /// Point a live unit at a new parent (or detach it to become a root). The caller has
-    /// validated shape/positivity/company and run the descendant cycle guard; the stored
+    /// validated shape/positivity and run the descendant cycle guard; the stored
     /// factor re-derivation happens in [`UomRepository::recompute_factors`].
     pub async fn set_relative(
         &self,
         conn: &mut PgConnection,
-        company: Uuid,
         uom: Uuid,
         relative_uom_id: Option<Uuid>,
         relative_factor: Option<Decimal>,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE catalog.uoms SET relative_uom_id = $3, relative_factor = $4 \
-             WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+            "UPDATE catalog.uoms SET relative_uom_id = $2, relative_factor = $3 \
+             WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
         .bind(uom)
-        .bind(company)
         .bind(relative_uom_id)
         .bind(relative_factor)
         .execute(conn)
@@ -218,7 +194,7 @@ impl UomRepository {
         Ok(())
     }
 
-    /// Re-derive every stored tree factor in the caller's RLS scope by calling the SQL
+    /// Re-derive every stored tree factor on the caller's connection by calling the SQL
     /// function installed by the parent-store-tree migration. Idempotent (rows whose
     /// derived factor equals the stored one are not rewritten) and loud: a cycle or
     /// dangling link raises a database error instead of pinning a stale factor.
@@ -234,20 +210,18 @@ impl UomRepository {
 
     // ── Protected-unit retire path (UM-4) ─────────────────────────────────────────
 
-    /// Protection flag of one live unit (`None` if the unit does not exist in the
-    /// company). Protected rows are module-seeded reference data and refuse deletion.
+    /// Protection flag of one live unit (`None` if the unit does not exist). Protected
+    /// rows are module-seeded reference data and refuse deletion.
     pub async fn find_protection(
         &self,
         conn: &mut PgConnection,
         id: Uuid,
-        company: Uuid,
     ) -> Result<Option<bool>, sqlx::Error> {
         let protected: Option<bool> = sqlx::query_scalar(
             "SELECT is_protected FROM catalog.uoms \
-             WHERE id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+             WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
         .bind(id)
-        .bind(company)
         .fetch_optional(conn)
         .await?;
         Ok(protected)
@@ -259,15 +233,13 @@ impl UomRepository {
     pub async fn count_live_children(
         &self,
         conn: &mut PgConnection,
-        company: Uuid,
         uom: Uuid,
     ) -> Result<i64, sqlx::Error> {
         let n: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM catalog.uoms \
-             WHERE relative_uom_id = $1 AND company_id = $2 AND (metadata->>'deleted_at') IS NULL",
+             WHERE relative_uom_id = $1 AND (metadata->>'deleted_at') IS NULL",
         )
         .bind(uom)
-        .bind(company)
         .fetch_one(conn)
         .await?;
         Ok(n)
@@ -279,17 +251,15 @@ impl UomRepository {
     pub async fn exists_live_item_using(
         &self,
         conn: &mut PgConnection,
-        company: Uuid,
         uom: Uuid,
     ) -> Result<bool, sqlx::Error> {
         let hit: bool = sqlx::query_scalar(
             "SELECT EXISTS ( \
                  SELECT 1 FROM catalog.items \
-                 WHERE default_uom_id = $1 AND company_id = $2 \
+                 WHERE default_uom_id = $1 \
                    AND (metadata->>'deleted_at') IS NULL )",
         )
         .bind(uom)
-        .bind(company)
         .fetch_one(conn)
         .await?;
         Ok(hit)
@@ -302,15 +272,13 @@ impl UomRepository {
         &self,
         conn: &mut PgConnection,
         uom: Uuid,
-        company: Uuid,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE catalog.uoms \
              SET metadata = jsonb_set(metadata, '{deleted_at}', to_jsonb(now())) \
-             WHERE id = $1 AND company_id = $2",
+             WHERE id = $1",
         )
         .bind(uom)
-        .bind(company)
         .execute(conn)
         .await?;
         Ok(())

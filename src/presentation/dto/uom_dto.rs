@@ -35,9 +35,6 @@ use crate::domain::entity::UomType;
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct CreateUomDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "validation", validate(length(max = 20)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub code: String,
@@ -74,9 +71,6 @@ pub struct CreateUomDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateUomDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "validation", validate(length(max = 20)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub code: String,
@@ -113,9 +107,6 @@ pub struct UpdateUomDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct PatchUomDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
     #[cfg_attr(feature = "validation", validate(length(max = 20)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -146,7 +137,7 @@ pub struct PatchUomDto {
 impl PatchUomDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.code.is_some() || self.name.is_some() || self.uom_type.is_some() || self.decimal_places.is_some() || self.relative_uom_id.is_some() || self.relative_factor.is_some() || self.factor.is_some() || self.is_protected.is_some() || self.status.is_some()
+        self.code.is_some() || self.name.is_some() || self.uom_type.is_some() || self.decimal_places.is_some() || self.relative_uom_id.is_some() || self.relative_factor.is_some() || self.factor.is_some() || self.is_protected.is_some() || self.status.is_some()
     }
 }
 
@@ -164,8 +155,6 @@ impl PatchUomDto {
 pub struct UomResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub code: String,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
@@ -236,9 +225,9 @@ impl UomListResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct UomSummaryDto {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub code: String,
     pub name: String,
+    pub uom_type: UomType,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -250,7 +239,6 @@ impl From<Uom> for UomResponseDto {
     fn from(entity: Uom) -> Self {
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             code: entity.code,
             name: entity.name,
             uom_type: entity.uom_type,
@@ -270,9 +258,9 @@ impl From<Uom> for UomSummaryDto {
         let created_at = backbone_core::PersistentEntity::created_at(&entity);
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             code: entity.code,
             name: entity.name,
+            uom_type: entity.uom_type,
             created_at,
         }
     }
@@ -282,7 +270,6 @@ impl From<CreateUomDto> for Uom {
     fn from(dto: CreateUomDto) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id: dto.company_id,
             code: dto.code,
             name: dto.name,
             uom_type: dto.uom_type,
@@ -301,7 +288,6 @@ impl From<&Uom> for UomResponseDto {
     fn from(entity: &Uom) -> Self {
         Self {
             id: entity.id.clone(),
-            company_id: entity.company_id.clone(),
             code: entity.code.clone(),
             name: entity.name.clone(),
             uom_type: entity.uom_type.clone(),
@@ -324,7 +310,6 @@ impl backbone_core::FromCreateDto<CreateUomDto> for Uom {
 
 impl backbone_core::ApplyUpdateDto<UpdateUomDto> for Uom {
     fn apply_update(mut self, dto: UpdateUomDto) -> backbone_core::ServiceResult<Self> {
-        self.company_id = dto.company_id;
         self.code = dto.code;
         self.name = dto.name;
         self.uom_type = dto.uom_type;

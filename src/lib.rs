@@ -63,12 +63,14 @@ use std::sync::Arc;
 use axum::Router;
 use sqlx::PgPool;
 
-/// Fail-fast guard for ADR-0008 / ADR-0010 tenant isolation.
+/// Fail-fast guard for row-level-security posture (ADR-0029).
 ///
-/// The catalog tables use `FORCE ROW LEVEL SECURITY`, but a **superuser** connection bypasses RLS
-/// entirely — so the `app.company_id` fence is moot and one tenant's rows are reachable by another.
-/// Call this once at startup (before serving) to refuse to run if the pool connects as a superuser;
-/// connect the application role as a non-superuser (migrations/seeders may still run as the owner).
+/// The catalog tables ship with `ROW LEVEL SECURITY` enabled and forced but with no policies of
+/// their own — the composing service's tenancy decorator installs the org-scoped policies. A
+/// **superuser** connection bypasses RLS entirely, which would defeat whatever fence the
+/// composing host deployed. Call this once at startup (before serving) to refuse to run if the
+/// pool connects as a superuser; connect the application role as a non-superuser
+/// (migrations/seeders may still run as the owner).
 pub async fn assert_rls_enforced(pool: &PgPool) -> anyhow::Result<()> {
     let is_super: bool = sqlx::query_scalar("SELECT current_setting('is_superuser')::boolean")
         .fetch_one(pool)
@@ -76,7 +78,7 @@ pub async fn assert_rls_enforced(pool: &PgPool) -> anyhow::Result<()> {
     if is_super {
         anyhow::bail!(
             "backbone-catalog RLS guard: the database connection is a SUPERUSER, which bypasses \
-             FORCE ROW LEVEL SECURITY and defeats per-company tenant isolation. Connect the app as \
+             ROW LEVEL SECURITY and defeats the composing host's org fence. Connect the app as \
              a non-superuser role (migrations/seeders may still run as the owner)."
         );
     }

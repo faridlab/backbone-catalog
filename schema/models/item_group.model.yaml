@@ -3,6 +3,12 @@
 # Entity: ItemGroup
 # Description: Hierarchical classification for items (kategori barang). A tree; group nodes
 # organize, leaf nodes classify items. Referenced as item_group_id across the ERP.
+#
+# Tenancy: none, by design (ADR-0029). The module is tenant-agnostic and reusable —
+# it ships no scoping column and no fence declaration. A composing backend-service
+# that wants these tables org-scoped declares them in its tenancy.yaml; the
+# decorator installs org_unit_id, the RLS policy, and the org-scoped per-unit
+# indexes (the code unique and the listing indexes) at composition time.
 # =============================================================================
 
 models:
@@ -16,16 +22,10 @@ models:
         attributes: ["@id", "@default(uuid)"]
         description: "Unique item-group identifier"
 
-      # Tenant scope (ADR-0010 Decision B1).
-      company_id:
-        type: uuid
-        attributes: ["@required", "@foreign_key(organization.Company.id)"]
-        description: "Owning company (tenant scope)"
-
       code:
         type: string
         attributes: ["@required", "@max(40)"]
-        description: "Short unique code (e.g. FG, RAW, ELECTRONICS) — unique within the company"
+        description: "Short unique code (e.g. FG, RAW, ELECTRONICS)"
 
       name:
         type: string
@@ -82,15 +82,9 @@ models:
         inverse: item_group
 
     indexes:
-      - type: unique
-        fields: [company_id, code]
-        where: "deleted_at IS NULL"
-      - type: index
-        fields: [company_id, parent_id, sort_order]
-      - type: index
-        fields: [company_id, status]
-      - type: index
-        fields: [company_id]
+      # No tenancy indexes (ADR-0029): the module is tenant-agnostic. The per-unit
+      # code unique and the listing indexes are installed by the composing service's
+      # tenancy decorator (org_unit_id-leading), not declared here.
 
 # =============================================================================
 # Enums

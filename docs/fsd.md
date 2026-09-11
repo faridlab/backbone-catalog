@@ -35,8 +35,8 @@ uniqueness is partial on not-deleted rows.
 
 See `schema/hooks/catalog.hook.yaml`. In short: item group + default UOM must exist; item needs at
 least one usage flag; item_code/barcode unique; item-group parent must exist; a UoM tree link must
-set both parent and ratio, the ratio must be positive, the parent must exist in the same company,
-and a unit may never point at itself or its own descendant (cycle). Error codes:
+set both parent and ratio, the ratio must be positive, the parent must exist, and a unit may
+never point at itself or its own descendant (cycle). Error codes:
 `item_group_not_found`, `uom_not_found`, `no_usage_flag`, `duplicate_item_code`,
 `duplicate_barcode`, `parent_not_found`, `relative_shape_mismatch`,
 `non_positive_relative_factor`, `uom_cycle`, `cross_tree_conversion` (all `422`).

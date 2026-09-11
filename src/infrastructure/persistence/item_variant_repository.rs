@@ -5,10 +5,13 @@
 //! below hold the catalog write service's variant SQL (4-layer rule: services orchestrate, repos
 //! hold SQL).
 //!
+//! Tenant-agnostic (ADR-0029): no statement here names a tenancy column. When the composing
+//! host mounts a request-scoped org fence, plain pool reads ride the request-dedicated
+//! scoped connection and see only in-scope rows; undecorated, they see the whole table.
+//!
 //! Thin newtype over `backbone_orm::GenericCrudRepository<ItemVariant, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
-use backbone_orm::company_scope;
 use rust_decimal::Decimal;
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
@@ -43,7 +46,6 @@ impl ItemVariantRepository {
 /// `{attribute_code: value_code}` map validated against the attribute registry by the caller.
 pub struct NewItemVariantRow<'a> {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
     pub sku: &'a str,
     pub variant_label: &'a str,
@@ -56,56 +58,46 @@ pub struct NewItemVariantRow<'a> {
 /// Catalog variant SQL. Lives here (not in the service) per the module's 4-layer rule.
 impl ItemVariantRepository {
     /// Resolve a scanned code (barcode OR SKU) to a variant, joined with its parent item for the
-    /// sellable identity. Per-company (ADR-0010 B1): same `($2::uuid IS NULL OR …)` shape as
-    /// [`ItemRepository::find_by_scan_code`].
+    /// sellable identity. Tenant-agnostic: the statement runs plain on the caller's pool —
+    /// under a composed host's org request scope it rides the request-dedicated scoped
+    /// connection, so out-of-scope variants simply are not found.
     pub async fn find_variant_by_scan_code(
         &self,
         pool: &PgPool,
         code: &str,
-        company: Option<Uuid>,
     ) -> Result<Option<ItemHit>, sqlx::Error> {
-        let hit = company_scope::fetch_optional_scoped(
-            pool,
-            sqlx::query_as::<_, ItemHit>(
-                r#"SELECT v.item_id, v.id AS variant_id, i.item_code, i.name, v.barcode, v.sku
-                   FROM catalog.item_variants v JOIN catalog.items i ON i.id = v.item_id
-                   WHERE (v.barcode = $1 OR v.sku = $1)
-                     AND ($2::uuid IS NULL OR v.company_id = $2)
-                     AND (v.metadata->>'deleted_at') IS NULL
-                   LIMIT 1"#,
-            )
-            .bind(code)
-            .bind(company),
+        let hit = sqlx::query_as::<_, ItemHit>(
+            r#"SELECT v.item_id, v.id AS variant_id, i.item_code, i.name, v.barcode, v.sku
+               FROM catalog.item_variants v JOIN catalog.items i ON i.id = v.item_id
+               WHERE (v.barcode = $1 OR v.sku = $1)
+                 AND (v.metadata->>'deleted_at') IS NULL
+               LIMIT 1"#,
         )
+        .bind(code)
+        .fetch_optional(pool)
         .await?;
         Ok(hit)
     }
 
     /// Resolve `item_id` for a live variant (the soft-delete lookup step in
-    /// `CatalogWriteService::delete_item_variant`). `company_id = $2` only — the company is on the
-    /// caller's scope already.
+    /// `CatalogWriteService::delete_item_variant`).
     pub async fn find_item_id_for_live(
         &self,
         pool: &PgPool,
         variant_id: Uuid,
-        company: Uuid,
     ) -> Result<Option<Uuid>, sqlx::Error> {
-        let item_id: Option<Uuid> = company_scope::fetch_optional_scalar_scoped(
-            pool,
-            sqlx::query_scalar(
-                "SELECT item_id FROM catalog.item_variants \
-                 WHERE id=$1 AND company_id=$2 AND (metadata->>'deleted_at') IS NULL",
-            )
-            .bind(variant_id)
-            .bind(company),
+        let item_id: Option<Uuid> = sqlx::query_scalar(
+            "SELECT item_id FROM catalog.item_variants \
+             WHERE id=$1 AND (metadata->>'deleted_at') IS NULL",
         )
+        .bind(variant_id)
+        .fetch_optional(pool)
         .await?;
         Ok(item_id)
     }
 
-    /// Insert a variant on the caller's tx. The caller has already bound the company on `conn`.
-    /// Unique-constraint errors propagate as `sqlx::Error` so the service can disambiguate barcode
-    /// vs SKU duplicates.
+    /// Insert a variant on the caller's tx. Unique-constraint errors propagate as
+    /// `sqlx::Error` so the service can disambiguate barcode vs SKU duplicates.
     pub async fn insert_variant(
         &self,
         conn: &mut PgConnection,
@@ -113,11 +105,10 @@ impl ItemVariantRepository {
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"INSERT INTO catalog.item_variants
-                (id, company_id, item_id, sku, variant_label, options, barcode, is_default, weight_per_unit, status)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active'::catalog_status)"#,
+                (id, item_id, sku, variant_label, options, barcode, is_default, weight_per_unit, status)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'active'::catalog_status)"#,
         )
         .bind(r.id)
-        .bind(r.company_id)
         .bind(r.item_id)
         .bind(r.sku)
         .bind(r.variant_label)
@@ -130,21 +121,18 @@ impl ItemVariantRepository {
         Ok(())
     }
 
-    /// Soft-delete a variant on the caller's tx. The caller has already bound the company on `conn`;
-    /// `company_id = $2` is defense-in-depth on top of the RLS fence.
+    /// Soft-delete a variant on the caller's tx.
     pub async fn soft_delete_variant(
         &self,
         conn: &mut PgConnection,
         variant_id: Uuid,
-        company: Uuid,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE catalog.item_variants \
              SET metadata = jsonb_set(metadata, '{deleted_at}', to_jsonb(now())) \
-             WHERE id=$1 AND company_id=$2",
+             WHERE id=$1",
         )
         .bind(variant_id)
-        .bind(company)
         .execute(conn)
         .await?;
         Ok(())
@@ -156,14 +144,12 @@ impl ItemVariantRepository {
         &self,
         conn: &mut PgConnection,
         item_id: Uuid,
-        company: Uuid,
     ) -> Result<i64, sqlx::Error> {
         let remaining: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM catalog.item_variants \
-             WHERE item_id=$1 AND company_id=$2 AND (metadata->>'deleted_at') IS NULL",
+             WHERE item_id=$1 AND (metadata->>'deleted_at') IS NULL",
         )
         .bind(item_id)
-        .bind(company)
         .fetch_one(conn)
         .await?;
         Ok(remaining)

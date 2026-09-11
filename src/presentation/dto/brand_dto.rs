@@ -33,9 +33,6 @@ use crate::domain::entity::CatalogStatus;
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct CreateBrandDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "validation", validate(length(max = 40)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub code: String,
@@ -70,9 +67,6 @@ pub struct CreateBrandDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateBrandDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "validation", validate(length(max = 40)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub code: String,
@@ -107,9 +101,6 @@ pub struct UpdateBrandDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct PatchBrandDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
     #[cfg_attr(feature = "validation", validate(length(max = 40)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -137,7 +128,7 @@ pub struct PatchBrandDto {
 impl PatchBrandDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.code.is_some() || self.name.is_some() || self.short_description.is_some() || self.description.is_some() || self.logo_url.is_some() || self.sort_order.is_some() || self.status.is_some()
+        self.code.is_some() || self.name.is_some() || self.short_description.is_some() || self.description.is_some() || self.logo_url.is_some() || self.sort_order.is_some() || self.status.is_some()
     }
 }
 
@@ -155,8 +146,6 @@ impl PatchBrandDto {
 pub struct BrandResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub code: String,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
@@ -224,9 +213,9 @@ impl BrandListResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct BrandSummaryDto {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub code: String,
     pub name: String,
+    pub short_description: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -238,7 +227,6 @@ impl From<Brand> for BrandResponseDto {
     fn from(entity: Brand) -> Self {
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             code: entity.code,
             name: entity.name,
             short_description: entity.short_description,
@@ -256,9 +244,9 @@ impl From<Brand> for BrandSummaryDto {
         let created_at = backbone_core::PersistentEntity::created_at(&entity);
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             code: entity.code,
             name: entity.name,
+            short_description: entity.short_description,
             created_at,
         }
     }
@@ -268,7 +256,6 @@ impl From<CreateBrandDto> for Brand {
     fn from(dto: CreateBrandDto) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id: dto.company_id,
             code: dto.code,
             name: dto.name,
             short_description: dto.short_description,
@@ -285,7 +272,6 @@ impl From<&Brand> for BrandResponseDto {
     fn from(entity: &Brand) -> Self {
         Self {
             id: entity.id.clone(),
-            company_id: entity.company_id.clone(),
             code: entity.code.clone(),
             name: entity.name.clone(),
             short_description: entity.short_description.clone(),
@@ -306,7 +292,6 @@ impl backbone_core::FromCreateDto<CreateBrandDto> for Brand {
 
 impl backbone_core::ApplyUpdateDto<UpdateBrandDto> for Brand {
     fn apply_update(mut self, dto: UpdateBrandDto) -> backbone_core::ServiceResult<Self> {
-        self.company_id = dto.company_id;
         self.code = dto.code;
         self.name = dto.name;
         self.short_description = dto.short_description;

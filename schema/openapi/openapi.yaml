@@ -2963,7 +2963,6 @@ components:
       type: object
       required:
         - id
-        - company_id
         - code
         - name
         - attribute_type
@@ -2971,9 +2970,6 @@ components:
         - metadata
       properties:
         id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         code:
@@ -3005,16 +3001,12 @@ components:
     CreateAttributeRequest:
       type: object
       required:
-        - company_id
         - code
         - name
         - attribute_type
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         code:
           type: string
           maxLength: 40
@@ -3031,16 +3023,12 @@ components:
     UpdateAttributeRequest:
       type: object
       required:
-        - company_id
         - code
         - name
         - attribute_type
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         code:
           type: string
           maxLength: 40
@@ -3057,9 +3045,6 @@ components:
     PatchAttributeRequest:
       type: object
       properties:
-        company_id:
-          type: string
-          format: uuid
         code:
           type: string
           maxLength: 40
@@ -3087,7 +3072,6 @@ components:
       type: object
       required:
         - id
-        - company_id
         - attribute_id
         - code
         - label
@@ -3096,9 +3080,6 @@ components:
         - metadata
       properties:
         id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         attribute_id:
@@ -3146,7 +3127,6 @@ components:
     CreateAttributeValueRequest:
       type: object
       required:
-        - company_id
         - attribute_id
         - code
         - label
@@ -3154,9 +3134,6 @@ components:
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         attribute_id:
           type: string
           format: uuid
@@ -3189,7 +3166,6 @@ components:
     UpdateAttributeValueRequest:
       type: object
       required:
-        - company_id
         - attribute_id
         - code
         - label
@@ -3197,9 +3173,6 @@ components:
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         attribute_id:
           type: string
           format: uuid
@@ -3232,9 +3205,6 @@ components:
     PatchAttributeValueRequest:
       type: object
       properties:
-        company_id:
-          type: string
-          format: uuid
         attribute_id:
           type: string
           format: uuid
@@ -3278,7 +3248,6 @@ components:
       type: object
       required:
         - id
-        - company_id
         - code
         - name
         - sort_order
@@ -3286,9 +3255,6 @@ components:
         - metadata
       properties:
         id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         code:
@@ -3333,16 +3299,12 @@ components:
     CreateBrandRequest:
       type: object
       required:
-        - company_id
         - code
         - name
         - sort_order
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         code:
           type: string
           maxLength: 40
@@ -3372,16 +3334,12 @@ components:
     UpdateBrandRequest:
       type: object
       required:
-        - company_id
         - code
         - name
         - sort_order
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         code:
           type: string
           maxLength: 40
@@ -3411,9 +3369,6 @@ components:
     PatchBrandRequest:
       type: object
       properties:
-        company_id:
-          type: string
-          format: uuid
         code:
           type: string
           maxLength: 40
@@ -3454,7 +3409,6 @@ components:
       type: object
       required:
         - id
-        - company_id
         - item_code
         - name
         - item_group_id
@@ -3471,9 +3425,6 @@ components:
         - metadata
       properties:
         id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_code:
@@ -3555,7 +3506,6 @@ components:
     CreateItemRequest:
       type: object
       required:
-        - company_id
         - item_code
         - name
         - item_group_id
@@ -3571,9 +3521,6 @@ components:
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         item_code:
           type: string
           maxLength: 60
@@ -3640,7 +3587,6 @@ components:
     UpdateItemRequest:
       type: object
       required:
-        - company_id
         - item_code
         - name
         - item_group_id
@@ -3656,9 +3602,6 @@ components:
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         item_code:
           type: string
           maxLength: 60
@@ -3725,9 +3668,6 @@ components:
     PatchItemRequest:
       type: object
       properties:
-        company_id:
-          type: string
-          format: uuid
         item_code:
           type: string
           maxLength: 60
@@ -3805,7 +3745,6 @@ components:
       type: object
       required:
         - id
-        - company_id
         - code
         - name
         - is_group
@@ -3815,9 +3754,6 @@ components:
         - metadata
       properties:
         id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         code:
@@ -3859,7 +3795,6 @@ components:
     CreateItemGroupRequest:
       type: object
       required:
-        - company_id
         - code
         - name
         - is_group
@@ -3868,9 +3803,6 @@ components:
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         code:
           type: string
           maxLength: 40
@@ -3897,7 +3829,6 @@ components:
     UpdateItemGroupRequest:
       type: object
       required:
-        - company_id
         - code
         - name
         - is_group
@@ -3906,9 +3837,6 @@ components:
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         code:
           type: string
           maxLength: 40
@@ -3935,9 +3863,6 @@ components:
     PatchItemGroupRequest:
       type: object
       properties:
-        company_id:
-          type: string
-          format: uuid
         code:
           type: string
           maxLength: 40
@@ -3975,7 +3900,6 @@ components:
       type: object
       required:
         - id
-        - company_id
         - item_id
         - sku
         - variant_label
@@ -3985,9 +3909,6 @@ components:
         - metadata
       properties:
         id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -4031,7 +3952,6 @@ components:
     CreateItemVariantRequest:
       type: object
       required:
-        - company_id
         - item_id
         - sku
         - variant_label
@@ -4040,9 +3960,6 @@ components:
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         item_id:
           type: string
           format: uuid
@@ -4071,7 +3988,6 @@ components:
     UpdateItemVariantRequest:
       type: object
       required:
-        - company_id
         - item_id
         - sku
         - variant_label
@@ -4080,9 +3996,6 @@ components:
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         item_id:
           type: string
           format: uuid
@@ -4111,9 +4024,6 @@ components:
     PatchItemVariantRequest:
       type: object
       properties:
-        company_id:
-          type: string
-          format: uuid
         item_id:
           type: string
           format: uuid
@@ -4153,7 +4063,6 @@ components:
       type: object
       required:
         - id
-        - company_id
         - code
         - name
         - uom_type
@@ -4164,9 +4073,6 @@ components:
         - metadata
       properties:
         id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         code:
@@ -4214,7 +4120,6 @@ components:
     CreateUomRequest:
       type: object
       required:
-        - company_id
         - code
         - name
         - uom_type
@@ -4224,9 +4129,6 @@ components:
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         code:
           type: string
           maxLength: 20
@@ -4259,7 +4161,6 @@ components:
     UpdateUomRequest:
       type: object
       required:
-        - company_id
         - code
         - name
         - uom_type
@@ -4269,9 +4170,6 @@ components:
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         code:
           type: string
           maxLength: 20
@@ -4304,9 +4202,6 @@ components:
     PatchUomRequest:
       type: object
       properties:
-        company_id:
-          type: string
-          format: uuid
         code:
           type: string
           maxLength: 20
@@ -4350,16 +4245,12 @@ components:
       type: object
       required:
         - id
-        - company_id
         - from_uom_id
         - to_uom_id
         - factor
         - metadata
       properties:
         id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         from_uom_id:
@@ -4389,15 +4280,11 @@ components:
     CreateUomConversionRequest:
       type: object
       required:
-        - company_id
         - from_uom_id
         - to_uom_id
         - factor
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         from_uom_id:
           type: string
           format: uuid
@@ -4412,15 +4299,11 @@ components:
     UpdateUomConversionRequest:
       type: object
       required:
-        - company_id
         - from_uom_id
         - to_uom_id
         - factor
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         from_uom_id:
           type: string
           format: uuid
@@ -4435,9 +4318,6 @@ components:
     PatchUomConversionRequest:
       type: object
       properties:
-        company_id:
-          type: string
-          format: uuid
         from_uom_id:
           type: string
           format: uuid

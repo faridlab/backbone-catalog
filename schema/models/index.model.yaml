@@ -15,11 +15,12 @@ version: 2
 schema: catalog
 description: "Canonical product/service identity: Item, ItemGroup, Uom (Indonesia-first)"
 
-# ADR-0014 company fence: every entity here is company-scoped and fenced strict — Item,
-# ItemGroup, Uom, UomConversion, Brand, Attribute, AttributeValue, ItemVariant. No
-# exceptions. The RLS fence itself is hand-authored (see the note on
-# config.generators.rls_migration below); this declaration states the module posture.
-company_fence: strict
+# Tenancy: none, by design (ADR-0029). The module is tenant-agnostic and reusable —
+# it ships no scoping column and no fence declaration. A composing backend-service
+# that wants these tables org-scoped declares them in its tenancy.yaml; the
+# decorator installs org_unit_id, the RLS policy, and the org-scoped per-unit
+# indexes (the code/sku/barcode uniques and the listing indexes) at composition
+# time.
 
 config:
   database: postgresql
@@ -39,20 +40,16 @@ config:
     # catalog wires the optional per-entity layers (auth/bulk_operations/usecases) + the
     # routes/handlers composition in application/mod.rs + lib.rs — opt them in at the source.
     layers: true
-    # The RLS fence is hand-authored in migrations/20260722000001_tenant_scope_company_rls (with a
-    # fail-loud stray check) — suppress the generated `<ts>_enable_company_rls` duplicate.
+    # RLS is never generator-emitted for this module: the historical company fence and its
+    # successor artifacts are all hand-authored migrations (the tenant-scope chain and the
+    # ADR-0029 strip). The ENABLE/FORCE flags they armed stay armed — the composing service's
+    # tenancy decorator owns the policies now.
     rls_migration: false
 
 # Reuse sapiens for user identity (actors) — logical refs, no DB constraint.
 external_imports:
   - module: sapiens
     types: [User]
-  # ADR-0010 Decision B1: catalog is tenant-scoped. Company lives in the organization
-  # module (serpa-workspace); declared as a logical ref so this framework module stays
-  # independently deployable (no SQL FK to organization.companies, matching the pos
-  # convention). The RLS fence (`app.company_id`) is what enforces isolation at runtime.
-  - module: organization
-    types: [Company]
 
 # Shared value-object types available to all models in this module.
 shared_types:

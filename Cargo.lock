@@ -232,7 +232,7 @@ dependencies = [
 
 [[package]]
 name = "backbone-catalog"
-version = "0.5.9"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "async-trait",

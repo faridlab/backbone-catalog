@@ -5,6 +5,10 @@
 //! validation. That lets a caller create an Item pointing at a missing item-group/UOM or an Item
 //! with no usage flag — corrupting the product identity every downstream module projects.
 //!
+//! Tenant-agnostic (ADR-0029): the handlers carry no tenancy plumbing. Request scoping is the
+//! composing host's concern — its auth middleware mounts the org request scope and the fence
+//! rides the request-dedicated connection.
+//!
 //! Guarded surface:
 //!   - **Item / ItemGroup**: READ + **validated create** via `CatalogWriteService`.
 //!     Generic update/delete/upsert/bulk are intentionally NOT mounted here.
@@ -20,7 +24,6 @@
 use std::sync::Arc;
 
 use axum::{extract::{Path, State}, http::StatusCode, response::IntoResponse, routing::{get, post}, Json, Router};
-use backbone_orm::company_scope;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -56,14 +59,6 @@ fn err_response(e: CatalogWriteError) -> axum::response::Response {
     (status, Json(ErrorBody { error: e.code(), message: e.to_string() })).into_response()
 }
 
-/// Resolve the caller's company from the request scope (ADR-0008: set by auth middleware via
-/// `with_request_scope`). Returns `Err` with a 401-shaped `CatalogWriteError` if the scope is
-/// missing — every catalog write is tenant-bound (ADR-0010 B1), so an unset scope is a hard stop
-/// rather than a silent default.
-fn require_company() -> Result<Uuid, CatalogWriteError> {
-    company_scope::current_company().ok_or(CatalogWriteError::NoCompanyScope)
-}
-
 // ── ItemGroup ─────────────────────────────────────────────────────────────────
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,10 +75,8 @@ async fn create_item_group(
     State(svc): State<Arc<CatalogWriteService>>,
     Json(b): Json<CreateItemGroupBody>,
 ) -> axum::response::Response {
-    let company = match require_company() { Ok(c) => c, Err(e) => return err_response(e) };
     match svc
         .create_item_group(NewItemGroup {
-            company_id: company,
             code: b.code, name: b.name, parent_id: b.parent_id, is_group: b.is_group,
         })
         .await
@@ -138,10 +131,8 @@ async fn create_item(
     State(svc): State<Arc<CatalogWriteService>>,
     Json(b): Json<CreateItemBody>,
 ) -> axum::response::Response {
-    let company = match require_company() { Ok(c) => c, Err(e) => return err_response(e) };
     match svc
         .create_item(NewItem {
-            company_id: company,
             item_code: b.item_code,
             name: b.name,
             description: b.description,
@@ -181,10 +172,8 @@ async fn create_attribute(
     State(svc): State<Arc<CatalogWriteService>>,
     Json(b): Json<CreateAttributeBody>,
 ) -> axum::response::Response {
-    let company = match require_company() { Ok(c) => c, Err(e) => return err_response(e) };
     match svc
         .create_attribute(NewAttribute {
-            company_id: company,
             code: b.code, name: b.name, attribute_type: b.attribute_type,
         })
         .await
@@ -212,10 +201,8 @@ async fn create_attribute_value(
     State(svc): State<Arc<CatalogWriteService>>,
     Json(b): Json<CreateAttributeValueBody>,
 ) -> axum::response::Response {
-    let company = match require_company() { Ok(c) => c, Err(e) => return err_response(e) };
     match svc
         .create_attribute_value(NewAttributeValue {
-            company_id: company,
             attribute_id: b.attribute_id,
             code: b.code,
             label: b.label,
@@ -252,10 +239,8 @@ async fn create_item_variant(
     State(svc): State<Arc<CatalogWriteService>>,
     Json(b): Json<CreateItemVariantBody>,
 ) -> axum::response::Response {
-    let company = match require_company() { Ok(c) => c, Err(e) => return err_response(e) };
     match svc
         .create_item_variant(NewItemVariant {
-            company_id: company,
             item_id: b.item_id,
             sku: b.sku,
             variant_label: b.variant_label,
@@ -295,10 +280,8 @@ async fn create_uom(
     State(svc): State<Arc<CatalogWriteService>>,
     Json(b): Json<CreateUomBody>,
 ) -> axum::response::Response {
-    let company = match require_company() { Ok(c) => c, Err(e) => return err_response(e) };
     match svc
         .create_uom(NewUom {
-            company_id: company,
             code: b.code, name: b.name, uom_type: b.uom_type, decimal_places: b.decimal_places,
             relative_uom_id: b.relative_uom_id, relative_factor: b.relative_factor,
         })
@@ -325,9 +308,6 @@ async fn set_uom_relative(
     Path(id): Path<Uuid>,
     Json(b): Json<SetUomRelativeBody>,
 ) -> axum::response::Response {
-    if let Err(e) = require_company() {
-        return err_response(e);
-    }
     let relative = match (b.relative_uom_id, b.relative_factor) {
         (None, None) => None,
         (Some(parent), Some(rf)) => Some((parent, rf)),
@@ -379,10 +359,8 @@ async fn create_brand(
     State(svc): State<Arc<CatalogWriteService>>,
     Json(b): Json<CreateBrandBody>,
 ) -> axum::response::Response {
-    let company = match require_company() { Ok(c) => c, Err(e) => return err_response(e) };
     match svc
         .create_brand(NewBrand {
-            company_id: company,
             code: b.code,
             name: b.name,
             short_description: b.short_description,
@@ -426,9 +404,6 @@ async fn change_item_status(
     Path(id): Path<Uuid>,
     Json(b): Json<ChangeItemStatusBody>,
 ) -> axum::response::Response {
-    if let Err(e) = require_company() {
-        return err_response(e);
-    }
     let target = match b.status.parse::<CatalogStatus>() {
         Ok(s) => s,
         Err(_) => {

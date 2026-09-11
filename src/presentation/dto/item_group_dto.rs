@@ -33,9 +33,6 @@ use crate::domain::entity::CatalogStatus;
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct CreateItemGroupDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "validation", validate(length(max = 40)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub code: String,
@@ -68,9 +65,6 @@ pub struct CreateItemGroupDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateItemGroupDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "validation", validate(length(max = 40)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub code: String,
@@ -103,9 +97,6 @@ pub struct UpdateItemGroupDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct PatchItemGroupDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
     #[cfg_attr(feature = "validation", validate(length(max = 40)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -132,7 +123,7 @@ pub struct PatchItemGroupDto {
 impl PatchItemGroupDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.code.is_some() || self.name.is_some() || self.parent_id.is_some() || self.is_group.is_some() || self.level.is_some() || self.sort_order.is_some() || self.status.is_some()
+        self.code.is_some() || self.name.is_some() || self.parent_id.is_some() || self.is_group.is_some() || self.level.is_some() || self.sort_order.is_some() || self.status.is_some()
     }
 }
 
@@ -150,8 +141,6 @@ impl PatchItemGroupDto {
 pub struct ItemGroupResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub code: String,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
@@ -221,9 +210,9 @@ impl ItemGroupListResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct ItemGroupSummaryDto {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub code: String,
     pub name: String,
+    pub parent_id: Option<Uuid>,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -235,7 +224,6 @@ impl From<ItemGroup> for ItemGroupResponseDto {
     fn from(entity: ItemGroup) -> Self {
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             code: entity.code,
             name: entity.name,
             parent_id: entity.parent_id,
@@ -253,9 +241,9 @@ impl From<ItemGroup> for ItemGroupSummaryDto {
         let created_at = backbone_core::PersistentEntity::created_at(&entity);
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             code: entity.code,
             name: entity.name,
+            parent_id: entity.parent_id,
             created_at,
         }
     }
@@ -265,7 +253,6 @@ impl From<CreateItemGroupDto> for ItemGroup {
     fn from(dto: CreateItemGroupDto) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id: dto.company_id,
             code: dto.code,
             name: dto.name,
             parent_id: dto.parent_id,
@@ -282,7 +269,6 @@ impl From<&ItemGroup> for ItemGroupResponseDto {
     fn from(entity: &ItemGroup) -> Self {
         Self {
             id: entity.id.clone(),
-            company_id: entity.company_id.clone(),
             code: entity.code.clone(),
             name: entity.name.clone(),
             parent_id: entity.parent_id.clone(),
@@ -303,7 +289,6 @@ impl backbone_core::FromCreateDto<CreateItemGroupDto> for ItemGroup {
 
 impl backbone_core::ApplyUpdateDto<UpdateItemGroupDto> for ItemGroup {
     fn apply_update(mut self, dto: UpdateItemGroupDto) -> backbone_core::ServiceResult<Self> {
-        self.company_id = dto.company_id;
         self.code = dto.code;
         self.name = dto.name;
         self.parent_id = dto.parent_id;

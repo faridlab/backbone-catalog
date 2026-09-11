@@ -5,10 +5,13 @@
 //! below hold the catalog write service's attribute-value SQL (4-layer rule: services orchestrate,
 //! repos hold SQL).
 //!
+//! Tenant-agnostic (ADR-0029): no statement here names a tenancy column. When the composing
+//! host mounts a request-scoped org fence, plain pool reads ride the request-dedicated
+//! scoped connection and see only in-scope rows; undecorated, they see the whole table.
+//!
 //! Thin newtype over `backbone_orm::GenericCrudRepository<AttributeValue, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
-use backbone_orm::company_scope;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -40,7 +43,6 @@ impl AttributeValueRepository {
 /// The exact row a validated attribute-value insert writes.
 pub struct NewAttributeValueRow<'a> {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub attribute_id: Uuid,
     pub code: &'a str,
     pub label: &'a str,
@@ -61,60 +63,50 @@ pub struct AttributeValueResolveRow {
 /// Catalog attribute-value SQL. Lives here (not in the service) per the module's 4-layer rule.
 impl AttributeValueRepository {
     /// Resolve `(value_id, label)` for a `(attribute_code, value_code)` pair, joined with the
-    /// attribute registry. Per-company (ADR-0010 B1): the company is bound in the WHERE as
-    /// defense-in-depth on top of the RLS fence so a cross-tenant collision on attribute code never
-    /// bleeds into this variant's validation. `None` = the value or its axis is unknown for this
-    /// tenant; the caller disambiguates with [`AttributeRepository::find_id_by_code`].
+    /// attribute registry. Tenant-agnostic: scoped by the caller's connection, never by a
+    /// column here. `None` = the value or its axis is unknown; the caller disambiguates with
+    /// [`AttributeRepository::find_id_by_code`].
     pub async fn find_value_with_attribute(
         &self,
         pool: &PgPool,
         attr_code: &str,
         val_code: &str,
-        company: Uuid,
     ) -> Result<Option<AttributeValueResolveRow>, sqlx::Error> {
-        let row: Option<(Uuid, String)> = company_scope::fetch_optional_scoped(
-            pool,
-            sqlx::query_as(
-                r#"SELECT av.id, av.label
-                   FROM catalog.attribute_values av
-                   JOIN catalog.attributes a ON a.id = av.attribute_id
-                   WHERE a.code = $1 AND av.code = $2 AND a.company_id = $3 AND av.company_id = $3
-                     AND (a.metadata->>'deleted_at') IS NULL
-                     AND (av.metadata->>'deleted_at') IS NULL"#,
-            )
-            .bind(attr_code)
-            .bind(val_code)
-            .bind(company),
+        let row: Option<(Uuid, String)> = sqlx::query_as(
+            r#"SELECT av.id, av.label
+               FROM catalog.attribute_values av
+               JOIN catalog.attributes a ON a.id = av.attribute_id
+               WHERE a.code = $1 AND av.code = $2
+                 AND (a.metadata->>'deleted_at') IS NULL
+                 AND (av.metadata->>'deleted_at') IS NULL"#,
         )
+        .bind(attr_code)
+        .bind(val_code)
+        .fetch_optional(pool)
         .await?;
         Ok(row.map(|(id, label)| AttributeValueResolveRow { id, label }))
     }
 
-    /// Insert a validated attribute-value row. The statement runs through the `company_scope`
-    /// execute helper, which binds `app.company_id` so the RLS `WITH CHECK` on
-    /// `catalog.attribute_values` accepts the row. Unique-constraint errors propagate as
+    /// Insert a validated attribute-value row. Unique-constraint errors propagate as
     /// `sqlx::Error` so the service can disambiguate code duplicates.
     pub async fn insert_attribute_value(
         &self,
         pool: &PgPool,
         r: &NewAttributeValueRow<'_>,
     ) -> Result<(), sqlx::Error> {
-        company_scope::execute_scoped(
-            pool,
-            sqlx::query(
-                r#"INSERT INTO catalog.attribute_values
-                    (id, company_id, attribute_id, code, label, label_en, swatch_hex, sort_order, status)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'active'::catalog_status)"#,
-            )
-            .bind(r.id)
-            .bind(r.company_id)
-            .bind(r.attribute_id)
-            .bind(r.code)
-            .bind(r.label)
-            .bind(r.label_en)
-            .bind(r.swatch_hex)
-            .bind(r.sort_order),
+        sqlx::query(
+            r#"INSERT INTO catalog.attribute_values
+                (id, attribute_id, code, label, label_en, swatch_hex, sort_order, status)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,'active'::catalog_status)"#,
         )
+        .bind(r.id)
+        .bind(r.attribute_id)
+        .bind(r.code)
+        .bind(r.label)
+        .bind(r.label_en)
+        .bind(r.swatch_hex)
+        .bind(r.sort_order)
+        .execute(pool)
         .await?;
         Ok(())
     }

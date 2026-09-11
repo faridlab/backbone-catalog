@@ -34,9 +34,6 @@ use crate::domain::entity::CatalogStatus;
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct CreateAttributeDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "validation", validate(length(max = 40)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub code: String,
@@ -61,9 +58,6 @@ pub struct CreateAttributeDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateAttributeDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "validation", validate(length(max = 40)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub code: String,
@@ -88,9 +82,6 @@ pub struct UpdateAttributeDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct PatchAttributeDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
     #[cfg_attr(feature = "validation", validate(length(max = 40)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -108,7 +99,7 @@ pub struct PatchAttributeDto {
 impl PatchAttributeDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.code.is_some() || self.name.is_some() || self.attribute_type.is_some() || self.status.is_some()
+        self.code.is_some() || self.name.is_some() || self.attribute_type.is_some() || self.status.is_some()
     }
 }
 
@@ -126,8 +117,6 @@ impl PatchAttributeDto {
 pub struct AttributeResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub code: String,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
@@ -191,9 +180,9 @@ impl AttributeListResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct AttributeSummaryDto {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub code: String,
     pub name: String,
+    pub attribute_type: AttributeType,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -205,7 +194,6 @@ impl From<Attribute> for AttributeResponseDto {
     fn from(entity: Attribute) -> Self {
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             code: entity.code,
             name: entity.name,
             attribute_type: entity.attribute_type,
@@ -220,9 +208,9 @@ impl From<Attribute> for AttributeSummaryDto {
         let created_at = backbone_core::PersistentEntity::created_at(&entity);
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             code: entity.code,
             name: entity.name,
+            attribute_type: entity.attribute_type,
             created_at,
         }
     }
@@ -232,7 +220,6 @@ impl From<CreateAttributeDto> for Attribute {
     fn from(dto: CreateAttributeDto) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id: dto.company_id,
             code: dto.code,
             name: dto.name,
             attribute_type: dto.attribute_type,
@@ -246,7 +233,6 @@ impl From<&Attribute> for AttributeResponseDto {
     fn from(entity: &Attribute) -> Self {
         Self {
             id: entity.id.clone(),
-            company_id: entity.company_id.clone(),
             code: entity.code.clone(),
             name: entity.name.clone(),
             attribute_type: entity.attribute_type.clone(),
@@ -264,7 +250,6 @@ impl backbone_core::FromCreateDto<CreateAttributeDto> for Attribute {
 
 impl backbone_core::ApplyUpdateDto<UpdateAttributeDto> for Attribute {
     fn apply_update(mut self, dto: UpdateAttributeDto) -> backbone_core::ServiceResult<Self> {
-        self.company_id = dto.company_id;
         self.code = dto.code;
         self.name = dto.name;
         self.attribute_type = dto.attribute_type;

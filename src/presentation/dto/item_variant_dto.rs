@@ -35,9 +35,6 @@ use crate::domain::entity::CatalogStatus;
 #[serde(rename_all = "camelCase")]
 pub struct CreateItemVariantDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "item_id")]
     pub item_id: Uuid,
     #[cfg_attr(feature = "validation", validate(length(max = 60)))]
@@ -72,9 +69,6 @@ pub struct CreateItemVariantDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateItemVariantDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "item_id")]
     pub item_id: Uuid,
@@ -111,9 +105,6 @@ pub struct UpdateItemVariantDto {
 #[serde(rename_all = "camelCase")]
 pub struct PatchItemVariantDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "item_id")]
     pub item_id: Option<Uuid>,
     #[cfg_attr(feature = "validation", validate(length(max = 60)))]
@@ -141,7 +132,7 @@ pub struct PatchItemVariantDto {
 impl PatchItemVariantDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.item_id.is_some() || self.sku.is_some() || self.variant_label.is_some() || self.options.is_some() || self.barcode.is_some() || self.is_default.is_some() || self.weight_per_unit.is_some() || self.status.is_some()
+        self.item_id.is_some() || self.sku.is_some() || self.variant_label.is_some() || self.options.is_some() || self.barcode.is_some() || self.is_default.is_some() || self.weight_per_unit.is_some() || self.status.is_some()
     }
 }
 
@@ -159,8 +150,6 @@ impl PatchItemVariantDto {
 pub struct ItemVariantResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub item_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
@@ -230,9 +219,9 @@ impl ItemVariantListResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct ItemVariantSummaryDto {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
     pub sku: String,
+    pub variant_label: String,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -244,7 +233,6 @@ impl From<ItemVariant> for ItemVariantResponseDto {
     fn from(entity: ItemVariant) -> Self {
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             item_id: entity.item_id,
             sku: entity.sku,
             variant_label: entity.variant_label,
@@ -263,9 +251,9 @@ impl From<ItemVariant> for ItemVariantSummaryDto {
         let created_at = backbone_core::PersistentEntity::created_at(&entity);
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             item_id: entity.item_id,
             sku: entity.sku,
+            variant_label: entity.variant_label,
             created_at,
         }
     }
@@ -275,7 +263,6 @@ impl From<CreateItemVariantDto> for ItemVariant {
     fn from(dto: CreateItemVariantDto) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id: dto.company_id,
             item_id: dto.item_id,
             sku: dto.sku,
             variant_label: dto.variant_label,
@@ -293,7 +280,6 @@ impl From<&ItemVariant> for ItemVariantResponseDto {
     fn from(entity: &ItemVariant) -> Self {
         Self {
             id: entity.id.clone(),
-            company_id: entity.company_id.clone(),
             item_id: entity.item_id.clone(),
             sku: entity.sku.clone(),
             variant_label: entity.variant_label.clone(),
@@ -315,7 +301,6 @@ impl backbone_core::FromCreateDto<CreateItemVariantDto> for ItemVariant {
 
 impl backbone_core::ApplyUpdateDto<UpdateItemVariantDto> for ItemVariant {
     fn apply_update(mut self, dto: UpdateItemVariantDto) -> backbone_core::ServiceResult<Self> {
-        self.company_id = dto.company_id;
         self.item_id = dto.item_id;
         self.sku = dto.sku;
         self.variant_label = dto.variant_label;

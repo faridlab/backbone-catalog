@@ -4,6 +4,12 @@
 # Description: A global conversion factor between two units. Interpreted as
 #   1 <from_uom> = <factor> <to_uom>   (e.g. 1 BOX = 12 PCS → factor 12).
 # Item-specific conversions can be layered later; this is the shared base table.
+#
+# Tenancy: none, by design (ADR-0029). The module is tenant-agnostic and reusable —
+# it ships no scoping column and no fence declaration. A composing backend-service
+# that wants these tables org-scoped declares them in its tenancy.yaml; the
+# decorator installs org_unit_id, the RLS policy, and the org-scoped per-unit
+# indexes (the pair unique and the listing indexes) at composition time.
 # =============================================================================
 
 models:
@@ -16,12 +22,6 @@ models:
         type: uuid
         attributes: ["@id", "@default(uuid)"]
         description: "Unique conversion identifier"
-
-      # Tenant scope (ADR-0010 Decision B1); denormalized from the pair of Uoms.
-      company_id:
-        type: uuid
-        attributes: ["@required", "@foreign_key(organization.Company.id)"]
-        description: "Owning company (tenant scope; denormalized from Uom)"
 
       from_uom_id:
         type: uuid
@@ -55,10 +55,6 @@ models:
         description: "Target unit"
 
     indexes:
-      - type: unique
-        fields: [company_id, from_uom_id, to_uom_id]
-        where: "deleted_at IS NULL"
-      - type: index
-        fields: [company_id, from_uom_id]
-      - type: index
-        fields: [company_id]
+      # No tenancy indexes (ADR-0029): the module is tenant-agnostic. The per-unit
+      # (from_uom_id, to_uom_id) unique and the listing indexes are installed by the
+      # composing service's tenancy decorator (org_unit_id-leading), not declared here.

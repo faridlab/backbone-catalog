@@ -4,18 +4,15 @@
 //! Hits routes via tower oneshot (no live server).
 //! Requires DATABASE_URL (defaults to local dev Postgres on :5433).
 //!
-//! ADR-0010 B1: every test uses a fresh random `company` UUID; each seed INSERT carries it
-//! (company_id is NOT NULL), and every request is wrapped in `company_scope::with_company_scope`
-//! so the guarded handlers' `require_company()` resolves the tenant — exactly mirroring
-//! catalog_golden_cases.
+//! Tenancy: none, by design (ADR-0029) — the module runs undecorated here: requests go
+//! through with no org scope bound, and every seeded code carries a random suffix so
+//! parallel cases on the shared database never collide.
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
-
-use backbone_orm::company_scope;
 
 use backbone_catalog::{create_guarded_catalog_routes, CatalogModule};
 
@@ -28,34 +25,29 @@ async fn pool() -> PgPool {
 async fn module(pool: &PgPool) -> CatalogModule {
     CatalogModule::builder().with_database(pool.clone()).build().unwrap()
 }
-/// Send a POST on the guarded surface inside the caller's company scope so
-/// `require_company()` resolves (ADR-0010 B1).
-async fn post(app: axum::Router, company: Uuid, uri: &str, body: String) -> StatusCode {
-    company_scope::with_company_scope(Some(company), async {
-        app.oneshot(
-            Request::builder().method("POST").uri(uri)
-                .header("content-type", "application/json").body(Body::from(body)).unwrap(),
-        ).await.unwrap().status()
-    }).await
+/// Send a POST on the guarded surface.
+async fn post(app: axum::Router, uri: &str, body: String) -> StatusCode {
+    app.oneshot(
+        Request::builder().method("POST").uri(uri)
+            .header("content-type", "application/json").body(Body::from(body)).unwrap(),
+    ).await.unwrap().status()
 }
-async fn send(app: axum::Router, company: Uuid, method: &str, uri: &str, body: Option<String>) -> StatusCode {
-    company_scope::with_company_scope(Some(company), async {
-        let b = body.map(Body::from).unwrap_or(Body::empty());
-        app.oneshot(
-            Request::builder().method(method).uri(uri)
-                .header("content-type", "application/json").body(b).unwrap(),
-        ).await.unwrap().status()
-    }).await
+async fn send(app: axum::Router, method: &str, uri: &str, body: Option<String>) -> StatusCode {
+    let b = body.map(Body::from).unwrap_or(Body::empty());
+    app.oneshot(
+        Request::builder().method(method).uri(uri)
+            .header("content-type", "application/json").body(b).unwrap(),
+    ).await.unwrap().status()
 }
 fn uq(p: &str) -> String { format!("{p}-{}", &Uuid::new_v4().simple().to_string()[..8]) }
 
-async fn seed_group_and_uom(pool: &PgPool, company: Uuid) -> (Uuid, Uuid) {
+async fn seed_group_and_uom(pool: &PgPool) -> (Uuid, Uuid) {
     let g = Uuid::new_v4();
-    sqlx::query("INSERT INTO catalog.item_groups (id, company_id, code, name) VALUES ($1,$2,$3,'G')")
-        .bind(g).bind(company).bind(uq("FG")).execute(pool).await.unwrap();
+    sqlx::query("INSERT INTO catalog.item_groups (id, code, name) VALUES ($1,$2,'G')")
+        .bind(g).bind(uq("FG")).execute(pool).await.unwrap();
     let u = Uuid::new_v4();
-    sqlx::query("INSERT INTO catalog.uoms (id, company_id, code, name) VALUES ($1,$2,$3,'PCS')")
-        .bind(u).bind(company).bind(uq("PCS")).execute(pool).await.unwrap();
+    sqlx::query("INSERT INTO catalog.uoms (id, code, name) VALUES ($1,$2,'PCS')")
+        .bind(u).bind(uq("PCS")).execute(pool).await.unwrap();
     (g, u)
 }
 
@@ -63,8 +55,7 @@ async fn seed_group_and_uom(pool: &PgPool, company: Uuid) -> (Uuid, Uuid) {
 #[tokio::test]
 async fn guarded_routes_lock_generic_item_create() {
     let pool = pool().await;
-    let company = Uuid::new_v4();
-    let (g, u) = seed_group_and_uom(&pool, company).await;
+    let (g, u) = seed_group_and_uom(&pool).await;
     // A fully-formed generic CreateItemDto payload (camelCase) — would 201 on raw routes().
     let body = format!(
         r#"{{"itemCode":"{}","name":"X","itemGroupId":"{g}","defaultUomId":"{u}","itemType":"physical_good","isSalesItem":true,"isPurchaseItem":true,"isStockItem":true,"isTaxable":true,"status":"active"}}"#,
@@ -73,7 +64,7 @@ async fn guarded_routes_lock_generic_item_create() {
     // Hit the generic verb by targeting a route only raw CRUD would add for items via PATCH/upsert;
     // on the guarded surface POST /items is the VALIDATED handler, so instead prove the raw CRUD
     // bulk endpoint is absent.
-    let status = post(create_guarded_catalog_routes(&module(&pool).await), company, "/items/bulk", body).await;
+    let status = post(create_guarded_catalog_routes(&module(&pool).await), "/items/bulk", body).await;
     assert!(
         status == StatusCode::METHOD_NOT_ALLOWED || status == StatusCode::NOT_FOUND,
         "generic bulk item create must not be exposed; got {status}"
@@ -84,13 +75,12 @@ async fn guarded_routes_lock_generic_item_create() {
 #[tokio::test]
 async fn guarded_item_rejects_missing_group() {
     let pool = pool().await;
-    let company = Uuid::new_v4();
-    let (_g, u) = seed_group_and_uom(&pool, company).await;
+    let (_g, u) = seed_group_and_uom(&pool).await;
     let body = format!(
         r#"{{"itemCode":"{}","name":"X","itemGroupId":"{}","defaultUomId":"{u}"}}"#,
         uq("SKU"), Uuid::new_v4()
     );
-    let status = post(create_guarded_catalog_routes(&module(&pool).await), company, "/items", body).await;
+    let status = post(create_guarded_catalog_routes(&module(&pool).await), "/items", body).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
@@ -98,13 +88,12 @@ async fn guarded_item_rejects_missing_group() {
 #[tokio::test]
 async fn guarded_tree_link_rejects_zero_ratio() {
     let pool = pool().await;
-    let company = Uuid::new_v4();
-    let (_g, from) = seed_group_and_uom(&pool, company).await;
+    let (_g, from) = seed_group_and_uom(&pool).await;
     let to = Uuid::new_v4();
-    sqlx::query("INSERT INTO catalog.uoms (id, company_id, code, name) VALUES ($1,$2,$3,'T')")
-        .bind(to).bind(company).bind(uq("TO")).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO catalog.uoms (id, code, name) VALUES ($1,$2,'T')")
+        .bind(to).bind(uq("TO")).execute(&pool).await.unwrap();
     let body = format!(r#"{{"relativeUomId":"{from}","relativeFactor":"0"}}"#);
-    let status = post(create_guarded_catalog_routes(&module(&pool).await), company, &format!("/uoms/{to}/relative"), body).await;
+    let status = post(create_guarded_catalog_routes(&module(&pool).await), &format!("/uoms/{to}/relative"), body).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
@@ -112,13 +101,12 @@ async fn guarded_tree_link_rejects_zero_ratio() {
 #[tokio::test]
 async fn guarded_valid_writes_succeed() {
     let pool = pool().await;
-    let company = Uuid::new_v4();
-    let (g, u) = seed_group_and_uom(&pool, company).await;
+    let (g, u) = seed_group_and_uom(&pool).await;
     let item_body = format!(
         r#"{{"itemCode":"{}","name":"Ok","itemGroupId":"{g}","defaultUomId":"{u}"}}"#,
         uq("OK")
     );
-    let s1 = post(create_guarded_catalog_routes(&module(&pool).await), company, "/items", item_body).await;
+    let s1 = post(create_guarded_catalog_routes(&module(&pool).await), "/items", item_body).await;
     assert_eq!(s1, StatusCode::CREATED);
 
     // A child unit defined against the seeded root: 1 new unit = 12 of the root.
@@ -126,14 +114,13 @@ async fn guarded_valid_writes_succeed() {
         r#"{{"code":"{}","name":"Dozen","relativeUomId":"{u}","relativeFactor":"12"}}"#,
         uq("DZN")
     );
-    let s2 = post(create_guarded_catalog_routes(&module(&pool).await), company, "/uoms", child_body).await;
+    let s2 = post(create_guarded_catalog_routes(&module(&pool).await), "/uoms", child_body).await;
     assert_eq!(s2, StatusCode::CREATED);
 
     // The stored factor was derived on insert: root factor 1 x ratio 12.
     let factor: rust_decimal::Decimal = sqlx::query_scalar(
-        "SELECT factor FROM catalog.uoms WHERE company_id = $1 AND relative_uom_id = $2",
+        "SELECT factor FROM catalog.uoms WHERE relative_uom_id = $1",
     )
-    .bind(company)
     .bind(u)
     .fetch_one(&pool)
     .await
@@ -145,16 +132,15 @@ async fn guarded_valid_writes_succeed() {
 #[tokio::test]
 async fn guarded_item_variant_rejects_unknown_option() {
     let pool = pool().await;
-    let company = Uuid::new_v4();
     let app = create_guarded_catalog_routes(&module(&pool).await);
     // Seed a template item directly.
-    let (g, u) = seed_group_and_uom(&pool, company).await;
+    let (g, u) = seed_group_and_uom(&pool).await;
     let item = Uuid::new_v4();
-    sqlx::query("INSERT INTO catalog.items (id, company_id, item_code, name, item_group_id, default_uom_id) VALUES ($1,$2,$3,'T',$4,$5)")
-        .bind(item).bind(company).bind(uq("SKU")).bind(g).bind(u).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO catalog.items (id, item_code, name, item_group_id, default_uom_id) VALUES ($1,$2,'T',$3,$4)")
+        .bind(item).bind(uq("SKU")).bind(g).bind(u).execute(&pool).await.unwrap();
     // Options reference an attribute axis that doesn't exist.
     let body = format!(r#"{{"itemId":"{item}","sku":"{}","options":{{"ghost":"x"}}}}"#, uq("VAR"));
-    let status = post(app, company, "/item-variants", body).await;
+    let status = post(app, "/item-variants", body).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
@@ -164,10 +150,9 @@ async fn guarded_item_variant_rejects_unknown_option() {
 #[tokio::test]
 async fn guarded_routes_lock_uom_mutation() {
     let pool = pool().await;
-    let company = Uuid::new_v4();
-    let (_g, u) = seed_group_and_uom(&pool, company).await;
+    let (_g, u) = seed_group_and_uom(&pool).await;
     for (method, uri) in [("DELETE", format!("/uoms/{u}")), ("PATCH", format!("/uoms/{u}"))] {
-        let status = send(create_guarded_catalog_routes(&module(&pool).await), company, method, &uri, Some("{}".into())).await;
+        let status = send(create_guarded_catalog_routes(&module(&pool).await), method, &uri, Some("{}".into())).await;
         assert!(
             status == StatusCode::METHOD_NOT_ALLOWED || status == StatusCode::NOT_FOUND,
             "{method} {uri} must not be exposed on the guarded surface; got {status}"
@@ -179,12 +164,11 @@ async fn guarded_routes_lock_uom_mutation() {
 #[tokio::test]
 async fn guarded_routes_lock_brand_mutation() {
     let pool = pool().await;
-    let company = Uuid::new_v4();
     let bid = Uuid::new_v4();
-    sqlx::query("INSERT INTO catalog.brands (id, company_id, code, name) VALUES ($1,$2,$3,'B')")
-        .bind(bid).bind(company).bind(uq("BR")).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO catalog.brands (id, code, name) VALUES ($1,$2,'B')")
+        .bind(bid).bind(uq("BR")).execute(&pool).await.unwrap();
     for (method, uri) in [("DELETE", format!("/brands/{bid}")), ("PATCH", format!("/brands/{bid}"))] {
-        let status = send(create_guarded_catalog_routes(&module(&pool).await), company, method, &uri, Some("{}".into())).await;
+        let status = send(create_guarded_catalog_routes(&module(&pool).await), method, &uri, Some("{}".into())).await;
         assert!(
             status == StatusCode::METHOD_NOT_ALLOWED || status == StatusCode::NOT_FOUND,
             "{method} {uri} must not be exposed; got {status}"
@@ -192,46 +176,49 @@ async fn guarded_routes_lock_brand_mutation() {
     }
 }
 
-// IGC-8: validated Uom create via the guarded surface works and dedupes.
+// IGC-8: validated Uom create via the guarded surface works. Code uniqueness is the
+// composing decorator's (ADR-0029): the module ships no per-row unique on `code`
+// (every business unique here was company-leading and the strip removed them), so
+// undecorated a repeated code writes a second row; under a composed host the
+// decorator's (org_unit_id, code) unique fires and the service maps the violation to
+// `DuplicateUomCode` (422).
 #[tokio::test]
-async fn guarded_uom_create_and_dedupe() {
+async fn guarded_uom_create_repeats_code_undecorated() {
     let pool = pool().await;
-    let company = Uuid::new_v4();
     let code = uq("UOM");
     let body = format!(r#"{{"code":"{code}","name":"Pieces","uomType":"count"}}"#);
-    let s1 = send(create_guarded_catalog_routes(&module(&pool).await), company, "POST", "/uoms", Some(body.clone())).await;
+    let s1 = send(create_guarded_catalog_routes(&module(&pool).await), "POST", "/uoms", Some(body.clone())).await;
     assert_eq!(s1, StatusCode::CREATED);
-    let s2 = send(create_guarded_catalog_routes(&module(&pool).await), company, "POST", "/uoms", Some(body)).await;
-    assert_eq!(s2, StatusCode::UNPROCESSABLE_ENTITY, "duplicate uom code must be rejected");
+    let s2 = send(create_guarded_catalog_routes(&module(&pool).await), "POST", "/uoms", Some(body)).await;
+    assert_eq!(s2, StatusCode::CREATED, "no module-level unique: the second row writes undecorated");
 }
 
 // IGC-9: deleting the last variant flips the item's has_variants back to false (no lying flag).
 #[tokio::test]
 async fn deleting_last_variant_resets_has_variants() {
     let pool = pool().await;
-    let company = Uuid::new_v4();
-    let (g, u) = seed_group_and_uom(&pool, company).await;
+    let (g, u) = seed_group_and_uom(&pool).await;
     let app = create_guarded_catalog_routes(&module(&pool).await);
     // template item
     let item = Uuid::new_v4();
-    sqlx::query("INSERT INTO catalog.items (id, company_id, item_code, name, item_group_id, default_uom_id) VALUES ($1,$2,$3,'T',$4,$5)")
-        .bind(item).bind(company).bind(uq("SKU")).bind(g).bind(u).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO catalog.items (id, item_code, name, item_group_id, default_uom_id) VALUES ($1,$2,'T',$3,$4)")
+        .bind(item).bind(uq("SKU")).bind(g).bind(u).execute(&pool).await.unwrap();
     // attribute + value, then a variant via guarded routes
     let attr = uq("color");
     let av = format!(r#"{{"code":"{attr}","name":"Color"}}"#);
-    send(create_guarded_catalog_routes(&module(&pool).await), company, "POST", "/attributes", Some(av)).await;
+    send(app.clone(), "POST", "/attributes", Some(av)).await;
     let avv = format!(r#"{{"attributeId":"{}","code":"red","label":"Red"}}"#,
         sqlx::query_scalar::<_, Uuid>("SELECT id FROM catalog.attributes WHERE code=$1").bind(&attr).fetch_one(&pool).await.unwrap());
-    send(create_guarded_catalog_routes(&module(&pool).await), company, "POST", "/attribute-values", Some(avv)).await;
+    send(app.clone(), "POST", "/attribute-values", Some(avv)).await;
     let vbody = format!(r#"{{"itemId":"{item}","sku":"{}","options":{{"{attr}":"red"}}}}"#, uq("VAR"));
-    let cs = send(app, company, "POST", "/item-variants", Some(vbody)).await;
+    let cs = send(app.clone(), "POST", "/item-variants", Some(vbody)).await;
     assert_eq!(cs, StatusCode::CREATED);
 
     let has1: bool = sqlx::query_scalar("SELECT has_variants FROM catalog.items WHERE id=$1").bind(item).fetch_one(&pool).await.unwrap();
     assert!(has1, "has_variants should be true after adding a variant");
 
     let vid: Uuid = sqlx::query_scalar("SELECT id FROM catalog.item_variants WHERE item_id=$1").bind(item).fetch_one(&pool).await.unwrap();
-    let ds = send(create_guarded_catalog_routes(&module(&pool).await), company, "POST", "/item-variants/delete", Some(format!(r#"{{"id":"{vid}"}}"#))).await;
+    let ds = send(app, "POST", "/item-variants/delete", Some(format!(r#"{{"id":"{vid}"}}"#))).await;
     assert_eq!(ds, StatusCode::OK);
 
     let has2: bool = sqlx::query_scalar("SELECT has_variants FROM catalog.items WHERE id=$1").bind(item).fetch_one(&pool).await.unwrap();
@@ -244,32 +231,30 @@ async fn deleting_last_variant_resets_has_variants() {
 #[tokio::test]
 async fn guarded_uom_retire_endpoint_enforces_protection() {
     let pool = pool().await;
-    let company = Uuid::new_v4();
-    let (g, u) = seed_group_and_uom(&pool, company).await;
+    let (g, u) = seed_group_and_uom(&pool).await;
     let app = create_guarded_catalog_routes(&module(&pool).await);
 
     // A user unit nothing leans on retires cleanly.
     let lone = Uuid::new_v4();
-    sqlx::query("INSERT INTO catalog.uoms (id, company_id, code, name) VALUES ($1,$2,$3,'L')")
-        .bind(lone).bind(company).bind(uq("LONE")).execute(&pool).await.unwrap();
-    let ok = send(app.clone(), company, "POST", "/uoms/delete", Some(format!(r#"{{"id":"{lone}"}}"#))).await;
+    sqlx::query("INSERT INTO catalog.uoms (id, code, name) VALUES ($1,$2,'L')")
+        .bind(lone).bind(uq("LONE")).execute(&pool).await.unwrap();
+    let ok = send(app.clone(), "POST", "/uoms/delete", Some(format!(r#"{{"id":"{lone}"}}"#))).await;
     assert_eq!(ok, StatusCode::OK);
 
     // A protected (module-seeded) unit refuses.
     let seeded = Uuid::new_v4();
-    sqlx::query("INSERT INTO catalog.uoms (id, company_id, code, name) VALUES ($1,$2,$3,'S')")
-        .bind(seeded).bind(company).bind(uq("SEEDED")).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO catalog.uoms (id, code, name) VALUES ($1,$2,'S')")
+        .bind(seeded).bind(uq("SEEDED")).execute(&pool).await.unwrap();
     sqlx::query("UPDATE catalog.uoms SET is_protected = true WHERE id = $1")
         .bind(seeded).execute(&pool).await.unwrap();
-    let refused = send(app.clone(), company, "POST", "/uoms/delete", Some(format!(r#"{{"id":"{seeded}"}}"#))).await;
+    let refused = send(app.clone(), "POST", "/uoms/delete", Some(format!(r#"{{"id":"{seeded}"}}"#))).await;
     assert_eq!(refused, StatusCode::UNPROCESSABLE_ENTITY);
 
-    // The seeded unit's group sibling is the default of the seeded item above: the
-    // referenced unit (u) refuses too — u is default_uom of nothing yet, so first prove
-    // the referenced case by pointing a live item at the second seeded-style unit.
+    // A live item still pointing its default_uom at a unit makes that unit unretirable —
+    // the orphaning hazard the endpoint exists for (ADR-005).
     let item = Uuid::new_v4();
-    sqlx::query("INSERT INTO catalog.items (id, company_id, item_code, name, item_group_id, default_uom_id) VALUES ($1,$2,$3,'T',$4,$5)")
-        .bind(item).bind(company).bind(uq("SKU2")).bind(g).bind(u).execute(&pool).await.unwrap();
-    let in_use = send(app, company, "POST", "/uoms/delete", Some(format!(r#"{{"id":"{u}"}}"#))).await;
+    sqlx::query("INSERT INTO catalog.items (id, item_code, name, item_group_id, default_uom_id) VALUES ($1,$2,'T',$3,$4)")
+        .bind(item).bind(uq("SKU2")).bind(g).bind(u).execute(&pool).await.unwrap();
+    let in_use = send(app, "POST", "/uoms/delete", Some(format!(r#"{{"id":"{u}"}}"#))).await;
     assert_eq!(in_use, StatusCode::UNPROCESSABLE_ENTITY);
 }
