@@ -7,7 +7,7 @@ info:
     This API provides 11 standard CRUD endpoints for each model.
 
 servers:
-  - url: http://localhost:3000
+  - url: /
     description: Development server
 
 tags:
@@ -29,7 +29,7 @@ tags:
     description: UomConversion management endpoints
 
 paths:
-  /api/v1/attributes:
+  /api/v1/catalog/attributes:
     get:
       tags:
         - Attributes
@@ -75,7 +75,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /api/v1/attributes/{id}:
+  /api/v1/catalog/attributes/{id}:
     parameters:
       - $ref: '#/components/parameters/IdParam'
 
@@ -147,7 +147,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/attributes/bulk:
+  /api/v1/catalog/attributes/bulk:
     post:
       tags:
         - Attributes
@@ -239,7 +239,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/attributes/upsert:
+  /api/v1/catalog/attributes/upsert:
     post:
       tags:
         - Attributes
@@ -269,7 +269,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Attribute'
 
-  /api/v1/attributes/trash:
+  /api/v1/catalog/attributes/trash:
     get:
       tags:
         - Attributes
@@ -286,7 +286,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AttributeList'
 
-  /api/v1/attributes/{id}/restore:
+  /api/v1/catalog/attributes/{id}/restore:
     parameters:
       - $ref: '#/components/parameters/IdParam'
     post:
@@ -304,7 +304,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/attributes/empty:
+  /api/v1/catalog/attributes/empty:
     delete:
       tags:
         - Attributes
@@ -321,7 +321,7 @@ paths:
                   deleted_count:
                     type: integer
 
-  /api/v1/attributes/delete/bulk:
+  /api/v1/catalog/attributes/delete/bulk:
     post:
       tags:
         - Attributes
@@ -341,7 +341,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/attributes/restore/bulk:
+  /api/v1/catalog/attributes/restore/bulk:
     post:
       tags:
         - Attributes
@@ -359,7 +359,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/attributes/restore/all:
+  /api/v1/catalog/attributes/restore/all:
     post:
       tags:
         - Attributes
@@ -375,7 +375,7 @@ paths:
                 properties:
                   restored: { type: integer }
 
-  /api/v1/attributes/trash/bulk:
+  /api/v1/catalog/attributes/trash/bulk:
     delete:
       tags:
         - Attributes
@@ -395,7 +395,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/attribute_values:
+  /api/v1/catalog/attribute_values:
     get:
       tags:
         - AttributeValues
@@ -441,7 +441,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /api/v1/attribute_values/{id}:
+  /api/v1/catalog/attribute_values/{id}:
     parameters:
       - $ref: '#/components/parameters/IdParam'
 
@@ -513,7 +513,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/attribute_values/bulk:
+  /api/v1/catalog/attribute_values/bulk:
     post:
       tags:
         - AttributeValues
@@ -605,7 +605,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/attribute_values/upsert:
+  /api/v1/catalog/attribute_values/upsert:
     post:
       tags:
         - AttributeValues
@@ -635,7 +635,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AttributeValue'
 
-  /api/v1/attribute_values/trash:
+  /api/v1/catalog/attribute_values/trash:
     get:
       tags:
         - AttributeValues
@@ -652,7 +652,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AttributeValueList'
 
-  /api/v1/attribute_values/{id}/restore:
+  /api/v1/catalog/attribute_values/{id}/restore:
     parameters:
       - $ref: '#/components/parameters/IdParam'
     post:
@@ -670,7 +670,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/attribute_values/empty:
+  /api/v1/catalog/attribute_values/empty:
     delete:
       tags:
         - AttributeValues
@@ -687,7 +687,7 @@ paths:
                   deleted_count:
                     type: integer
 
-  /api/v1/attribute_values/delete/bulk:
+  /api/v1/catalog/attribute_values/delete/bulk:
     post:
       tags:
         - AttributeValues
@@ -707,7 +707,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/attribute_values/restore/bulk:
+  /api/v1/catalog/attribute_values/restore/bulk:
     post:
       tags:
         - AttributeValues
@@ -725,7 +725,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/attribute_values/restore/all:
+  /api/v1/catalog/attribute_values/restore/all:
     post:
       tags:
         - AttributeValues
@@ -741,7 +741,7 @@ paths:
                 properties:
                   restored: { type: integer }
 
-  /api/v1/attribute_values/trash/bulk:
+  /api/v1/catalog/attribute_values/trash/bulk:
     delete:
       tags:
         - AttributeValues
@@ -761,7 +761,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/brands:
+  /api/v1/catalog/brands:
     get:
       tags:
         - Brands
@@ -807,7 +807,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /api/v1/brands/{id}:
+  /api/v1/catalog/brands/{id}:
     parameters:
       - $ref: '#/components/parameters/IdParam'
 
@@ -879,7 +879,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/brands/bulk:
+  /api/v1/catalog/brands/bulk:
     post:
       tags:
         - Brands
@@ -971,7 +971,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/brands/upsert:
+  /api/v1/catalog/brands/upsert:
     post:
       tags:
         - Brands
@@ -1001,7 +1001,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Brand'
 
-  /api/v1/brands/trash:
+  /api/v1/catalog/brands/trash:
     get:
       tags:
         - Brands
@@ -1018,7 +1018,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/BrandList'
 
-  /api/v1/brands/{id}/restore:
+  /api/v1/catalog/brands/{id}/restore:
     parameters:
       - $ref: '#/components/parameters/IdParam'
     post:
@@ -1036,7 +1036,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/brands/empty:
+  /api/v1/catalog/brands/empty:
     delete:
       tags:
         - Brands
@@ -1053,7 +1053,7 @@ paths:
                   deleted_count:
                     type: integer
 
-  /api/v1/brands/delete/bulk:
+  /api/v1/catalog/brands/delete/bulk:
     post:
       tags:
         - Brands
@@ -1073,7 +1073,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/brands/restore/bulk:
+  /api/v1/catalog/brands/restore/bulk:
     post:
       tags:
         - Brands
@@ -1091,7 +1091,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/brands/restore/all:
+  /api/v1/catalog/brands/restore/all:
     post:
       tags:
         - Brands
@@ -1107,7 +1107,7 @@ paths:
                 properties:
                   restored: { type: integer }
 
-  /api/v1/brands/trash/bulk:
+  /api/v1/catalog/brands/trash/bulk:
     delete:
       tags:
         - Brands
@@ -1127,7 +1127,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/items:
+  /api/v1/catalog/items:
     get:
       tags:
         - Items
@@ -1173,7 +1173,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /api/v1/items/{id}:
+  /api/v1/catalog/items/{id}:
     parameters:
       - $ref: '#/components/parameters/IdParam'
 
@@ -1245,7 +1245,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/items/bulk:
+  /api/v1/catalog/items/bulk:
     post:
       tags:
         - Items
@@ -1337,7 +1337,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/items/upsert:
+  /api/v1/catalog/items/upsert:
     post:
       tags:
         - Items
@@ -1367,7 +1367,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Item'
 
-  /api/v1/items/trash:
+  /api/v1/catalog/items/trash:
     get:
       tags:
         - Items
@@ -1384,7 +1384,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ItemList'
 
-  /api/v1/items/{id}/restore:
+  /api/v1/catalog/items/{id}/restore:
     parameters:
       - $ref: '#/components/parameters/IdParam'
     post:
@@ -1402,7 +1402,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/items/empty:
+  /api/v1/catalog/items/empty:
     delete:
       tags:
         - Items
@@ -1419,7 +1419,7 @@ paths:
                   deleted_count:
                     type: integer
 
-  /api/v1/items/delete/bulk:
+  /api/v1/catalog/items/delete/bulk:
     post:
       tags:
         - Items
@@ -1439,7 +1439,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/items/restore/bulk:
+  /api/v1/catalog/items/restore/bulk:
     post:
       tags:
         - Items
@@ -1457,7 +1457,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/items/restore/all:
+  /api/v1/catalog/items/restore/all:
     post:
       tags:
         - Items
@@ -1473,7 +1473,7 @@ paths:
                 properties:
                   restored: { type: integer }
 
-  /api/v1/items/trash/bulk:
+  /api/v1/catalog/items/trash/bulk:
     delete:
       tags:
         - Items
@@ -1493,7 +1493,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/item_groups:
+  /api/v1/catalog/item_groups:
     get:
       tags:
         - ItemGroups
@@ -1539,7 +1539,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /api/v1/item_groups/{id}:
+  /api/v1/catalog/item_groups/{id}:
     parameters:
       - $ref: '#/components/parameters/IdParam'
 
@@ -1611,7 +1611,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/item_groups/bulk:
+  /api/v1/catalog/item_groups/bulk:
     post:
       tags:
         - ItemGroups
@@ -1703,7 +1703,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/item_groups/upsert:
+  /api/v1/catalog/item_groups/upsert:
     post:
       tags:
         - ItemGroups
@@ -1733,7 +1733,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ItemGroup'
 
-  /api/v1/item_groups/trash:
+  /api/v1/catalog/item_groups/trash:
     get:
       tags:
         - ItemGroups
@@ -1750,7 +1750,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ItemGroupList'
 
-  /api/v1/item_groups/{id}/restore:
+  /api/v1/catalog/item_groups/{id}/restore:
     parameters:
       - $ref: '#/components/parameters/IdParam'
     post:
@@ -1768,7 +1768,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/item_groups/empty:
+  /api/v1/catalog/item_groups/empty:
     delete:
       tags:
         - ItemGroups
@@ -1785,7 +1785,7 @@ paths:
                   deleted_count:
                     type: integer
 
-  /api/v1/item_groups/delete/bulk:
+  /api/v1/catalog/item_groups/delete/bulk:
     post:
       tags:
         - ItemGroups
@@ -1805,7 +1805,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/item_groups/restore/bulk:
+  /api/v1/catalog/item_groups/restore/bulk:
     post:
       tags:
         - ItemGroups
@@ -1823,7 +1823,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/item_groups/restore/all:
+  /api/v1/catalog/item_groups/restore/all:
     post:
       tags:
         - ItemGroups
@@ -1839,7 +1839,7 @@ paths:
                 properties:
                   restored: { type: integer }
 
-  /api/v1/item_groups/trash/bulk:
+  /api/v1/catalog/item_groups/trash/bulk:
     delete:
       tags:
         - ItemGroups
@@ -1859,7 +1859,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/item_variants:
+  /api/v1/catalog/item_variants:
     get:
       tags:
         - ItemVariants
@@ -1905,7 +1905,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /api/v1/item_variants/{id}:
+  /api/v1/catalog/item_variants/{id}:
     parameters:
       - $ref: '#/components/parameters/IdParam'
 
@@ -1977,7 +1977,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/item_variants/bulk:
+  /api/v1/catalog/item_variants/bulk:
     post:
       tags:
         - ItemVariants
@@ -2069,7 +2069,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/item_variants/upsert:
+  /api/v1/catalog/item_variants/upsert:
     post:
       tags:
         - ItemVariants
@@ -2099,7 +2099,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ItemVariant'
 
-  /api/v1/item_variants/trash:
+  /api/v1/catalog/item_variants/trash:
     get:
       tags:
         - ItemVariants
@@ -2116,7 +2116,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ItemVariantList'
 
-  /api/v1/item_variants/{id}/restore:
+  /api/v1/catalog/item_variants/{id}/restore:
     parameters:
       - $ref: '#/components/parameters/IdParam'
     post:
@@ -2134,7 +2134,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/item_variants/empty:
+  /api/v1/catalog/item_variants/empty:
     delete:
       tags:
         - ItemVariants
@@ -2151,7 +2151,7 @@ paths:
                   deleted_count:
                     type: integer
 
-  /api/v1/item_variants/delete/bulk:
+  /api/v1/catalog/item_variants/delete/bulk:
     post:
       tags:
         - ItemVariants
@@ -2171,7 +2171,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/item_variants/restore/bulk:
+  /api/v1/catalog/item_variants/restore/bulk:
     post:
       tags:
         - ItemVariants
@@ -2189,7 +2189,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/item_variants/restore/all:
+  /api/v1/catalog/item_variants/restore/all:
     post:
       tags:
         - ItemVariants
@@ -2205,7 +2205,7 @@ paths:
                 properties:
                   restored: { type: integer }
 
-  /api/v1/item_variants/trash/bulk:
+  /api/v1/catalog/item_variants/trash/bulk:
     delete:
       tags:
         - ItemVariants
@@ -2225,7 +2225,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/uoms:
+  /api/v1/catalog/uoms:
     get:
       tags:
         - Uoms
@@ -2271,7 +2271,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /api/v1/uoms/{id}:
+  /api/v1/catalog/uoms/{id}:
     parameters:
       - $ref: '#/components/parameters/IdParam'
 
@@ -2343,7 +2343,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/uoms/bulk:
+  /api/v1/catalog/uoms/bulk:
     post:
       tags:
         - Uoms
@@ -2435,7 +2435,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/uoms/upsert:
+  /api/v1/catalog/uoms/upsert:
     post:
       tags:
         - Uoms
@@ -2465,7 +2465,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Uom'
 
-  /api/v1/uoms/trash:
+  /api/v1/catalog/uoms/trash:
     get:
       tags:
         - Uoms
@@ -2482,7 +2482,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/UomList'
 
-  /api/v1/uoms/{id}/restore:
+  /api/v1/catalog/uoms/{id}/restore:
     parameters:
       - $ref: '#/components/parameters/IdParam'
     post:
@@ -2500,7 +2500,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/uoms/empty:
+  /api/v1/catalog/uoms/empty:
     delete:
       tags:
         - Uoms
@@ -2517,7 +2517,7 @@ paths:
                   deleted_count:
                     type: integer
 
-  /api/v1/uoms/delete/bulk:
+  /api/v1/catalog/uoms/delete/bulk:
     post:
       tags:
         - Uoms
@@ -2537,7 +2537,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/uoms/restore/bulk:
+  /api/v1/catalog/uoms/restore/bulk:
     post:
       tags:
         - Uoms
@@ -2555,7 +2555,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/uoms/restore/all:
+  /api/v1/catalog/uoms/restore/all:
     post:
       tags:
         - Uoms
@@ -2571,7 +2571,7 @@ paths:
                 properties:
                   restored: { type: integer }
 
-  /api/v1/uoms/trash/bulk:
+  /api/v1/catalog/uoms/trash/bulk:
     delete:
       tags:
         - Uoms
@@ -2591,7 +2591,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/uom_conversions:
+  /api/v1/catalog/uom_conversions:
     get:
       tags:
         - UomConversions
@@ -2637,7 +2637,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /api/v1/uom_conversions/{id}:
+  /api/v1/catalog/uom_conversions/{id}:
     parameters:
       - $ref: '#/components/parameters/IdParam'
 
@@ -2709,7 +2709,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/uom_conversions/bulk:
+  /api/v1/catalog/uom_conversions/bulk:
     post:
       tags:
         - UomConversions
@@ -2801,7 +2801,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/uom_conversions/upsert:
+  /api/v1/catalog/uom_conversions/upsert:
     post:
       tags:
         - UomConversions
@@ -2831,7 +2831,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/UomConversion'
 
-  /api/v1/uom_conversions/trash:
+  /api/v1/catalog/uom_conversions/trash:
     get:
       tags:
         - UomConversions
@@ -2848,7 +2848,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/UomConversionList'
 
-  /api/v1/uom_conversions/{id}/restore:
+  /api/v1/catalog/uom_conversions/{id}/restore:
     parameters:
       - $ref: '#/components/parameters/IdParam'
     post:
@@ -2866,7 +2866,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/uom_conversions/empty:
+  /api/v1/catalog/uom_conversions/empty:
     delete:
       tags:
         - UomConversions
@@ -2883,7 +2883,7 @@ paths:
                   deleted_count:
                     type: integer
 
-  /api/v1/uom_conversions/delete/bulk:
+  /api/v1/catalog/uom_conversions/delete/bulk:
     post:
       tags:
         - UomConversions
@@ -2903,7 +2903,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/uom_conversions/restore/bulk:
+  /api/v1/catalog/uom_conversions/restore/bulk:
     post:
       tags:
         - UomConversions
@@ -2921,7 +2921,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/uom_conversions/restore/all:
+  /api/v1/catalog/uom_conversions/restore/all:
     post:
       tags:
         - UomConversions
@@ -2937,7 +2937,7 @@ paths:
                 properties:
                   restored: { type: integer }
 
-  /api/v1/uom_conversions/trash/bulk:
+  /api/v1/catalog/uom_conversions/trash/bulk:
     delete:
       tags:
         - UomConversions
