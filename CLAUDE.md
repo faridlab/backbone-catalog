@@ -15,7 +15,13 @@ metaphor make entity <Name>              # scaffold from schema
 metaphor migration generate <name>         # new migration
 metaphor dev test                        # run tests
 metaphor lint check
+cargo check --all-features               # every declared feature must build
 ```
+
+`--all-features` is part of the check routine, not an optional extra. The
+default build leaves the `openapi` and `unguarded` features off, so a surface
+that only exists behind one of them can be broken for months without any
+routine check noticing.
 
 ## The single source of truth
 

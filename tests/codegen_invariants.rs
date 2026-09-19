@@ -33,3 +33,69 @@ fn unguarded_crud_mounts_remain_feature_gated() {
          re-apply the attribute above each and ensure src/routes/mod.rs is user_owned."
     );
 }
+
+/// Every feature this crate declares must be buildable.
+///
+/// The generator writes `#[cfg(feature = "openapi")] use utoipa::ToSchema;` into
+/// each entity and DTO, but it does not add the dependency that import needs. A
+/// crate that declares `openapi` without declaring `utoipa` compiles by default
+/// and fails the moment anyone turns the feature on, which is how the OpenAPI
+/// surface can sit broken while every routine check stays green. `cargo check
+/// --all-features` is the leg that catches it; this test is the cheap guard that
+/// runs on every `cargo test`.
+#[test]
+fn every_feature_that_needs_a_dependency_declares_it() {
+    let manifest = include_str!("../Cargo.toml");
+
+    let uses_utoipa = source_files_mentioning("utoipa::");
+    if uses_utoipa.is_empty() {
+        return;
+    }
+
+    assert!(
+        manifest.lines().any(|l| l.trim_start().starts_with("utoipa")),
+        "{} source file(s) import utoipa behind the `openapi` feature (first: {}), \
+         so Cargo.toml must declare the dependency. Without it `cargo check \
+         --all-features` fails on an unresolved import.",
+        uses_utoipa.len(),
+        uses_utoipa[0]
+    );
+
+    // The schema derive needs a companion feature for every foreign type it has
+    // to describe. `rust_decimal` is the one this module's DTOs carry.
+    if !source_files_mentioning("Decimal").is_empty() {
+        assert!(
+            manifest
+                .lines()
+                .filter(|l| l.trim_start().starts_with("utoipa"))
+                .any(|l| l.contains("decimal")),
+            "DTOs expose rust_decimal values, so the utoipa dependency must enable \
+             its `decimal` feature or the derive cannot describe them."
+        );
+    }
+}
+
+/// Paths under `src/` whose text contains `needle`.
+fn source_files_mentioning(needle: &str) -> Vec<String> {
+    fn walk(dir: &std::path::Path, needle: &str, out: &mut Vec<String>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk(&path, needle, out);
+            } else if path.extension().is_some_and(|e| e == "rs")
+                && std::fs::read_to_string(&path)
+                    .map(|s| s.contains(needle))
+                    .unwrap_or(false)
+            {
+                out.push(path.display().to_string());
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(std::path::Path::new("src"), needle, &mut out);
+    out.sort();
+    out
+}
