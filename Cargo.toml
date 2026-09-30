@@ -3,6 +3,7 @@ name = "backbone-catalog"
 version = "0.6.22"
 edition = "2021"
 description = "Canonical product/service identity: Item, Item Group, UOM (Indonesia-first)"
+license = "MIT OR Apache-2.0"
 
 [lib]
 path = "src/lib.rs"
