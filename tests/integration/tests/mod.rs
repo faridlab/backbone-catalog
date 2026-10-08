@@ -16,7 +16,6 @@ pub mod uom_api_test;
 pub mod uom_conversion_api_test;
 
 // Re-exports for convenience
-pub use crud_test_base::*;
 pub use attribute_api_test::*;
 pub use attribute_value_api_test::*;
 pub use brand_api_test::*;
