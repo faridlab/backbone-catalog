@@ -15,6 +15,7 @@ version: 2
 state_machines:
   - entity: Item
     field: status
+    verbs: hand
     initial: active
     states: [active, inactive, discontinued]
     transitions:
@@ -25,6 +26,7 @@ state_machines:
 
   - entity: ItemGroup
     field: status
+    verbs: hand
     initial: active
     states: [active, inactive, discontinued]
     transitions:

@@ -208,11 +208,11 @@ impl CatalogModuleBuilder {
 
         // Item service
         let item_repository = Arc::new(ItemRepository::new(db_pool.clone()));
-        let item_service = Arc::new(ItemService::with_repository(item_repository.clone()));
+        let item_service = Arc::new(ItemService::with_repository(item_repository.clone()).with_guard(Arc::new(crate::application::service::item_service::ItemRowRules)));
 
         // ItemGroup service
         let item_group_repository = Arc::new(ItemGroupRepository::new(db_pool.clone()));
-        let item_group_service = Arc::new(ItemGroupService::with_repository(item_group_repository.clone()));
+        let item_group_service = Arc::new(ItemGroupService::with_repository(item_group_repository.clone()).with_guard(Arc::new(crate::application::service::item_group_service::ItemGroupRowRules)));
 
         // ItemVariant service
         let item_variant_repository = Arc::new(ItemVariantRepository::new(db_pool.clone()));
