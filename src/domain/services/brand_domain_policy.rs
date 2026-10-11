@@ -18,5 +18,3 @@ use crate::domain::entity::Brand;
 /// service. `PermitAllPolicy` is the safe default until then.
 pub type BrandDomainPolicy = PermitAllPolicy<Brand>;
 
-// <<< CUSTOM
-// END CUSTOM

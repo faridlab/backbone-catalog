@@ -20,5 +20,3 @@ pub use item_variant_auth::{ItemVariantPolicy, ItemVariantGuard, ItemVariantServ
 pub use uom_auth::{UomPolicy, UomGuard, UomServiceGuard};
 pub use uom_conversion_auth::{UomConversionPolicy, UomConversionGuard, UomConversionServiceGuard};
 
-// <<< CUSTOM
-// END CUSTOM

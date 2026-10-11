@@ -20,9 +20,5 @@ pub fn attribute_value_validator() -> AttributeValueValidator {
         .rule(OptionalNotBlank::new("label_en", |e: &AttributeValue| e.label_en.as_deref()))
         .rule(OptionalNotBlank::new("swatch_hex", |e: &AttributeValue| e.swatch_hex.as_deref()))
         .rule(OptionalNotBlank::new("icon", |e: &AttributeValue| e.icon.as_deref()))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

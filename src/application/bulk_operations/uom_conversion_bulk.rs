@@ -18,5 +18,3 @@ use crate::domain::entity::UomConversion;
 /// and `ContinueOnError` / `AbortOnFirstError` failure modes.
 pub type UomConversionBulkService = GenericBulkService<UomConversion, CreateUomConversionDto, UomConversionService>;
 
-// <<< CUSTOM
-// END CUSTOM

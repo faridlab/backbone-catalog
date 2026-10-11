@@ -56,5 +56,3 @@ pub type UomGuard = PermissionGuard<Uom>;
 /// Service-integrated permission guard for Uom (for use in generated handlers).
 pub type UomServiceGuard = ServicePermissionGuard<Uom, UomService, UomPolicy>;
 
-// <<< CUSTOM
-// END CUSTOM

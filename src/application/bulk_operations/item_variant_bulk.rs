@@ -18,5 +18,3 @@ use crate::domain::entity::ItemVariant;
 /// and `ContinueOnError` / `AbortOnFirstError` failure modes.
 pub type ItemVariantBulkService = GenericBulkService<ItemVariant, CreateItemVariantDto, ItemVariantService>;
 
-// <<< CUSTOM
-// END CUSTOM

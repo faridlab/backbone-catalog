@@ -18,5 +18,3 @@ use crate::domain::entity::AttributeValue;
 /// and `ContinueOnError` / `AbortOnFirstError` failure modes.
 pub type AttributeValueBulkService = GenericBulkService<AttributeValue, CreateAttributeValueDto, AttributeValueService>;
 
-// <<< CUSTOM
-// END CUSTOM

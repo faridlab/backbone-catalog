@@ -11,5 +11,3 @@ pub use repositories::*;
 pub use services::*;
 pub use entity::*;
 
-// <<< CUSTOM
-// END CUSTOM

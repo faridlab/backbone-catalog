@@ -186,3 +186,4 @@ pub fn create_protected_brand_routes<A: AuthMiddleware + Send + Sync + 'static>(
             }
         }))
 }
+

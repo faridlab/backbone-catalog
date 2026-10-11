@@ -21,5 +21,3 @@ pub type GetBrandUseCase    = GetUseCase<Brand, BrandService>;
 pub type DeleteBrandUseCase = DeleteUseCase<Brand, BrandService>;
 pub type ListBrandUseCase   = ListUseCase<Brand, BrandService>;
 
-// <<< CUSTOM
-// END CUSTOM

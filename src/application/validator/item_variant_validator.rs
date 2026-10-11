@@ -18,9 +18,5 @@ pub fn item_variant_validator() -> ItemVariantValidator {
         .rule(RequiredString::new("sku", |e: &ItemVariant| &e.sku))
         .rule(RequiredString::new("variant_label", |e: &ItemVariant| &e.variant_label))
         .rule(OptionalNotBlank::new("barcode", |e: &ItemVariant| e.barcode.as_deref()))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

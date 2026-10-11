@@ -18,5 +18,3 @@ use crate::domain::entity::Item;
 /// and `ContinueOnError` / `AbortOnFirstError` failure modes.
 pub type ItemBulkService = GenericBulkService<Item, CreateItemDto, ItemService>;
 
-// <<< CUSTOM
-// END CUSTOM

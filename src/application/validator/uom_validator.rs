@@ -18,9 +18,5 @@ pub fn uom_validator() -> UomValidator {
         .rule(RequiredString::new("code", |e: &Uom| &e.code))
         .rule(RequiredString::new("name", |e: &Uom| &e.name))
         .rule(NonNegative::new("decimal_places", |e: &Uom| e.decimal_places as i64))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

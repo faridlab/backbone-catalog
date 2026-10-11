@@ -49,5 +49,3 @@ pub use uom_conversion_usecases::{
     DeleteUomConversionUseCase, ListUomConversionUseCase,
 };
 
-// <<< CUSTOM
-// END CUSTOM

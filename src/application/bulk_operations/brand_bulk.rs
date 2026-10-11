@@ -18,5 +18,3 @@ use crate::domain::entity::Brand;
 /// and `ContinueOnError` / `AbortOnFirstError` failure modes.
 pub type BrandBulkService = GenericBulkService<Brand, CreateBrandDto, BrandService>;
 
-// <<< CUSTOM
-// END CUSTOM

@@ -322,7 +322,7 @@ impl backbone_core::ApplyUpdateDto<UpdateAttributeValueDto> for AttributeValue {
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to AttributeValue here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+

@@ -56,5 +56,3 @@ pub type ItemVariantGuard = PermissionGuard<ItemVariant>;
 /// Service-integrated permission guard for ItemVariant (for use in generated handlers).
 pub type ItemVariantServiceGuard = ServicePermissionGuard<ItemVariant, ItemVariantService, ItemVariantPolicy>;
 
-// <<< CUSTOM
-// END CUSTOM

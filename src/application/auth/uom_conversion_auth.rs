@@ -56,5 +56,3 @@ pub type UomConversionGuard = PermissionGuard<UomConversion>;
 /// Service-integrated permission guard for UomConversion (for use in generated handlers).
 pub type UomConversionServiceGuard = ServicePermissionGuard<UomConversion, UomConversionService, UomConversionPolicy>;
 
-// <<< CUSTOM
-// END CUSTOM

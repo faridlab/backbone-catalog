@@ -304,7 +304,7 @@ impl backbone_core::ApplyUpdateDto<UpdateItemGroupDto> for ItemGroup {
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to ItemGroup here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+

@@ -18,5 +18,3 @@ use crate::domain::entity::Uom;
 /// and `ContinueOnError` / `AbortOnFirstError` failure modes.
 pub type UomBulkService = GenericBulkService<Uom, CreateUomDto, UomService>;
 
-// <<< CUSTOM
-// END CUSTOM

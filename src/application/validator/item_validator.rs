@@ -21,9 +21,5 @@ pub fn item_validator() -> ItemValidator {
         .rule(OptionalNotBlank::new("barcode", |e: &Item| e.barcode.as_deref()))
         .rule(OptionalNotBlank::new("hsn_code", |e: &Item| e.hsn_code.as_deref()))
         .rule(OptionalNotBlank::new("sni", |e: &Item| e.sni.as_deref()))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

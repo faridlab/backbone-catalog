@@ -317,7 +317,7 @@ impl backbone_core::ApplyUpdateDto<UpdateItemVariantDto> for ItemVariant {
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to ItemVariant here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+

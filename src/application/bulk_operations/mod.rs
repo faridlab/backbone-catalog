@@ -23,5 +23,3 @@ pub use item_variant_bulk::ItemVariantBulkService;
 pub use uom_bulk::UomBulkService;
 pub use uom_conversion_bulk::UomConversionBulkService;
 
-// <<< CUSTOM
-// END CUSTOM

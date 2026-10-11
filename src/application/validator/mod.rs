@@ -23,5 +23,3 @@ pub use item_variant_validator::{ItemVariantValidator, item_variant_validator};
 pub use uom_validator::{UomValidator, uom_validator};
 pub use uom_conversion_validator::{UomConversionValidator, uom_conversion_validator};
 
-// <<< CUSTOM
-// END CUSTOM

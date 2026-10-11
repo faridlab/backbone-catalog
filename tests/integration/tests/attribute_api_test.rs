@@ -103,6 +103,4 @@ mod tests {
 // CUSTOM TESTS
 // ============================================================================
 
-// <<< CUSTOM TESTS START >>>
 // Add Attribute specific tests here
-// <<< CUSTOM TESTS END >>>

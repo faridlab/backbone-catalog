@@ -20,7 +20,6 @@ use super::AppState;
 // CUSTOM HANDLERS
 // ============================================================
 
-// <<< CUSTOM HANDLERS START >>>
 
 /// Example custom handler demonstrating AppState usage.
 ///
@@ -41,4 +40,8 @@ pub async fn health_check(
 
 // Add more custom handlers below...
 
-// <<< CUSTOM HANDLERS END >>>
+
+// This file's extension (hand-written; ADR-0031).
+#[path = "custom.ext.rs"]
+mod custom_ext;
+pub use custom_ext::*;

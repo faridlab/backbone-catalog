@@ -120,6 +120,4 @@ mod tests {
 // CUSTOM TESTS
 // ============================================================================
 
-// <<< CUSTOM TESTS START >>>
 // Add AttributeValue specific tests here
-// <<< CUSTOM TESTS END >>>

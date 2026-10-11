@@ -18,5 +18,3 @@ use crate::domain::entity::UomConversion;
 /// service. `PermitAllPolicy` is the safe default until then.
 pub type UomConversionDomainPolicy = PermitAllPolicy<UomConversion>;
 
-// <<< CUSTOM
-// END CUSTOM

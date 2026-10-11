@@ -20,9 +20,5 @@ pub fn brand_validator() -> BrandValidator {
         .rule(OptionalNotBlank::new("short_description", |e: &Brand| e.short_description.as_deref()))
         .rule(OptionalNotBlank::new("description", |e: &Brand| e.description.as_deref()))
         .rule(OptionalNotBlank::new("logo_url", |e: &Brand| e.logo_url.as_deref()))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

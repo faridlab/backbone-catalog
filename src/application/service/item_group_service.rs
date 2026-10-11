@@ -32,5 +32,3 @@ pub type ItemGroupService = GenericCrudService<
     ItemGroupRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

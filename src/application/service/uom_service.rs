@@ -32,5 +32,3 @@ pub type UomService = GenericCrudService<
     UomRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

@@ -56,5 +56,3 @@ pub type ItemGroupGuard = PermissionGuard<ItemGroup>;
 /// Service-integrated permission guard for ItemGroup (for use in generated handlers).
 pub type ItemGroupServiceGuard = ServicePermissionGuard<ItemGroup, ItemGroupService, ItemGroupPolicy>;
 
-// <<< CUSTOM
-// END CUSTOM

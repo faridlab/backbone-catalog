@@ -17,9 +17,5 @@ pub fn attribute_validator() -> AttributeValidator {
     EntityValidator::new()
         .rule(RequiredString::new("code", |e: &Attribute| &e.code))
         .rule(RequiredString::new("name", |e: &Attribute| &e.name))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

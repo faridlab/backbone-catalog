@@ -21,5 +21,3 @@ pub type GetItemGroupUseCase    = GetUseCase<ItemGroup, ItemGroupService>;
 pub type DeleteItemGroupUseCase = DeleteUseCase<ItemGroup, ItemGroupService>;
 pub type ListItemGroupUseCase   = ListUseCase<ItemGroup, ItemGroupService>;
 
-// <<< CUSTOM
-// END CUSTOM

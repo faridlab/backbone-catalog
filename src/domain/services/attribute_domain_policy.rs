@@ -18,5 +18,3 @@ use crate::domain::entity::Attribute;
 /// service. `PermitAllPolicy` is the safe default until then.
 pub type AttributeDomainPolicy = PermitAllPolicy<Attribute>;
 
-// <<< CUSTOM
-// END CUSTOM

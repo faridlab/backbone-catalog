@@ -32,5 +32,3 @@ pub type ItemService = GenericCrudService<
     ItemRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

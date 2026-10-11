@@ -56,5 +56,3 @@ pub type AttributeGuard = PermissionGuard<Attribute>;
 /// Service-integrated permission guard for Attribute (for use in generated handlers).
 pub type AttributeServiceGuard = ServicePermissionGuard<Attribute, AttributeService, AttributePolicy>;
 
-// <<< CUSTOM
-// END CUSTOM

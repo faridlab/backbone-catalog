@@ -187,3 +187,4 @@ pub fn create_protected_item_variant_routes<A: AuthMiddleware + Send + Sync + 's
             }
         }))
 }
+

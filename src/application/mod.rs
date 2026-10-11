@@ -16,8 +16,6 @@ pub mod validator;
 
 // Re-exports
 pub use service::*;
-// <<< CUSTOM
-// END CUSTOM
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");

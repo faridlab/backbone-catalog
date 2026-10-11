@@ -18,5 +18,3 @@ use crate::domain::entity::ItemVariant;
 /// service. `PermitAllPolicy` is the safe default until then.
 pub type ItemVariantDomainPolicy = PermitAllPolicy<ItemVariant>;
 
-// <<< CUSTOM
-// END CUSTOM

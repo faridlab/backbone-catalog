@@ -16,8 +16,6 @@ pub mod item_variant_service;
 pub mod uom_service;
 pub mod uom_conversion_service;
 
-// <<< CUSTOM
-// END CUSTOM
 
 pub use attribute_service::AttributeService;
 pub use attribute_value_service::AttributeValueService;
@@ -27,8 +25,6 @@ pub use item_group_service::ItemGroupService;
 pub use item_variant_service::ItemVariantService;
 pub use uom_service::UomService;
 pub use uom_conversion_service::UomConversionService;
-// <<< CUSTOM
-// END CUSTOM
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");

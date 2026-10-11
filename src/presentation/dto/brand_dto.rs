@@ -307,7 +307,7 @@ impl backbone_core::ApplyUpdateDto<UpdateBrandDto> for Brand {
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to Brand here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+

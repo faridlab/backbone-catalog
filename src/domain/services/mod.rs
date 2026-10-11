@@ -20,8 +20,6 @@ pub use item_variant_domain_policy::ItemVariantDomainPolicy;
 pub use uom_domain_policy::UomDomainPolicy;
 pub use uom_conversion_domain_policy::UomConversionDomainPolicy;
 
-// <<< CUSTOM
-// END CUSTOM
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");

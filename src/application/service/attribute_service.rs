@@ -32,5 +32,3 @@ pub type AttributeService = GenericCrudService<
     AttributeRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

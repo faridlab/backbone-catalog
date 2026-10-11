@@ -18,9 +18,5 @@ pub fn item_group_validator() -> ItemGroupValidator {
         .rule(RequiredString::new("code", |e: &ItemGroup| &e.code))
         .rule(RequiredString::new("name", |e: &ItemGroup| &e.name))
         .rule(NonNegative::new("level", |e: &ItemGroup| e.level as i64))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

@@ -56,5 +56,3 @@ pub type BrandGuard = PermissionGuard<Brand>;
 /// Service-integrated permission guard for Brand (for use in generated handlers).
 pub type BrandServiceGuard = ServicePermissionGuard<Brand, BrandService, BrandPolicy>;
 
-// <<< CUSTOM
-// END CUSTOM

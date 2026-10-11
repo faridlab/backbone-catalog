@@ -21,5 +21,3 @@ pub type GetAttributeValueUseCase    = GetUseCase<AttributeValue, AttributeValue
 pub type DeleteAttributeValueUseCase = DeleteUseCase<AttributeValue, AttributeValueService>;
 pub type ListAttributeValueUseCase   = ListUseCase<AttributeValue, AttributeValueService>;
 
-// <<< CUSTOM
-// END CUSTOM

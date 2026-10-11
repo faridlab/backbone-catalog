@@ -149,6 +149,4 @@ mod tests {
 // CUSTOM TESTS
 // ============================================================================
 
-// <<< CUSTOM TESTS START >>>
 // Add Item specific tests here
-// <<< CUSTOM TESTS END >>>

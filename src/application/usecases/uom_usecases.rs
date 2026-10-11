@@ -21,5 +21,3 @@ pub type GetUomUseCase    = GetUseCase<Uom, UomService>;
 pub type DeleteUomUseCase = DeleteUseCase<Uom, UomService>;
 pub type ListUomUseCase   = ListUseCase<Uom, UomService>;
 
-// <<< CUSTOM
-// END CUSTOM

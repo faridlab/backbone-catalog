@@ -14,10 +14,6 @@ pub type UomConversionValidator = EntityValidator<UomConversion>;
 /// Build a validator for UomConversion with all schema-defined field rules.
 pub fn uom_conversion_validator() -> UomConversionValidator {
     EntityValidator::new()
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
         // No schema-derived rules — add custom rules above.
 }
 
-// <<< CUSTOM
-// END CUSTOM

@@ -327,7 +327,7 @@ impl backbone_core::ApplyUpdateDto<UpdateUomDto> for Uom {
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to Uom here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+

@@ -32,5 +32,3 @@ pub type BrandService = GenericCrudService<
     BrandRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM
