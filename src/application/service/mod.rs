@@ -17,7 +17,6 @@ pub mod uom_service;
 pub mod uom_conversion_service;
 
 // <<< CUSTOM
-pub mod catalog_write_service;
 // END CUSTOM
 
 pub use attribute_service::AttributeService;
@@ -29,8 +28,7 @@ pub use item_variant_service::ItemVariantService;
 pub use uom_service::UomService;
 pub use uom_conversion_service::UomConversionService;
 // <<< CUSTOM
-pub use catalog_write_service::{
-    CatalogWriteError, CatalogWriteService, NewAttribute, NewAttributeValue, NewBrand, NewItem,
-    NewItemGroup, NewItemVariant, NewUom,
-};
 // END CUSTOM
+
+// This directory's extension (hand-written; ADR-0031).
+include!("mod.ext.rs");

@@ -15,7 +15,6 @@ pub mod uom_handler;
 pub mod uom_conversion_handler;
 
 // <<< CUSTOM
-pub mod guarded_routes;
 // END CUSTOM
 
 // Re-exports
@@ -28,5 +27,7 @@ pub use item_variant_handler::{create_item_variant_routes, create_item_variant_r
 pub use uom_handler::{create_uom_routes, create_uom_read_routes, create_uom_write_routes};
 pub use uom_conversion_handler::{create_uom_conversion_routes, create_uom_conversion_read_routes, create_uom_conversion_write_routes};
 // <<< CUSTOM
-pub use guarded_routes::create_guarded_catalog_routes;
 // END CUSTOM
+
+// This directory's extension (hand-written; ADR-0031).
+include!("mod.ext.rs");
