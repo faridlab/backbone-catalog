@@ -40,81 +40,119 @@ state_machines:
 rules:
   - id: R1
     name: item_group_exists
+    entity: Item
     when: writing
     assert: "item_group_id references an existing non-deleted ItemGroup"
     error_code: item_group_not_found
+    enforced_by: "src/application/service/catalog_write_service.rs::create_item, migrations/20260426220006_create_item_table.up.sql::fk_items_item_group_id"
+    justification: "Holds on the validated create, the only item writer the composed surface mounts; no item-group delete is mounted. The foreign key refuses a missing group but not a soft-deleted one."
   - id: R2
     name: default_uom_exists
+    entity: Item
     when: writing
     assert: "default_uom_id references an existing non-deleted Uom"
     error_code: uom_not_found
+    justification: "PARTLY: create_item checks the UoM without a lock, and delete_uom is mounted: it checks for live items unlocked and then soft-deletes, so a concurrent create can commit an item on a UoM retired in between. The foreign key does not see soft deletes."
   - id: R3
     name: item_has_a_usage
+    entity: Item
     when: writing
     assert: "is_sales_item OR is_purchase_item OR is_stock_item"
     error_code: no_usage_flag
+    enforced_by: "src/application/service/catalog_write_service.rs::create_item"
+    justification: "Holds on the validated create; no update path is mounted, and the items table carries no CHECK."
   - id: R4
     name: unique_item_code
+    entity: Item
     when: writing
     assert: "item_code unique among non-deleted items"
     error_code: duplicate_item_code
+    justification: "PARTLY: the module's own item_code uniques were dropped with tenancy (tenant_scope_company_rls, then strip_tenancy) and create_item does no pre-check, so a bare deployment accepts duplicates. The composing service's tenancy posture installs the per-unit unique, which create_item maps to duplicate_item_code."
   - id: R5
     name: unique_barcode
+    entity: Item
     when: writing
     assert: "barcode unique among non-deleted items when present"
     error_code: duplicate_barcode
+    justification: "PARTLY: as unique_item_code: no module unique survives, only the composing service's per-unit one, mapped to duplicate_barcode. No check spans item and variant barcodes."
   - id: R6
     name: item_group_parent_exists
+    entity: ItemGroup
     when: writing
     assert: "parent_id present => parent ItemGroup exists"
     error_code: parent_not_found
+    enforced_by: "src/application/service/catalog_write_service.rs::create_item_group, migrations/20260426220004_create_item_group_table.up.sql::fk_item_groups_parent_id"
+    justification: "Holds on the validated create; no re-parent or delete of groups is mounted. A duplicate group code answers duplicate_item_code."
   - id: R7
     name: uom_conversion_distinct
+    entity: UomConversion
     when: writing
     assert: "from_uom_id != to_uom_id"
     error_code: same_uom
+    justification: "No writer: the guarded surface mounts UoM conversions read-only and no verb writes them, so the rule holds by absence; the generic write routes behind the unguarded feature write them unchecked, and same_uom is never produced."
   - id: R8
     name: uom_conversion_positive
+    entity: UomConversion
     when: writing
     assert: "factor > 0"
     error_code: non_positive_factor
+    justification: "No writer, as uom_conversion_distinct; uoms_factor_positive_chk guards the UoM tree's factor, not a conversion's, and non_positive_factor is never produced."
   - id: R9
     name: uom_conversion_uoms_exist
+    entity: UomConversion
     when: writing
     assert: "from_uom_id and to_uom_id reference existing non-deleted Uoms"
     error_code: uom_not_found
+    justification: "No writer, as uom_conversion_distinct; the conversion table's foreign keys refuse a missing UoM but not a soft-deleted one."
   - id: R14
     name: brand_exists
+    entity: Item
     when: writing
     assert: "brand_id present => brand exists"
     error_code: brand_not_found
+    enforced_by: "src/application/service/catalog_write_service.rs::create_item, migrations/20260426220006_create_item_table.up.sql::fk_items_brand_id"
+    justification: "Holds on the validated create; no brand delete is mounted."
   - id: R15
     name: non_physical_not_stockable
+    entity: Item
     when: writing
     assert: "item_type in {digital_good, service, subscription, gift_card} => is_stock_item = false"
     error_code: none
+    enforced_by: "src/application/service/catalog_write_service.rs::create_item, src/application/service/catalog_write_service.rs::is_physical_item_type"
+    justification: "Derived, not refused: create_item stores is_stock_item false for a non-physical type, on the only item writer mounted."
     note: "derived, not rejected — create_item forces is_stock_item false for non-physical types"
   # Variants & attributes (see ADR-003)
   - id: R10
     name: attribute_value_attribute_exists
+    entity: AttributeValue
     when: writing
     assert: "attribute_id references an existing non-deleted Attribute"
     error_code: attribute_not_found
+    enforced_by: "src/application/service/catalog_write_service.rs::create_attribute_value, migrations/20260426220002_create_attribute_value_table.up.sql::fk_attribute_values_attribute_id"
+    justification: "Holds on the validated create; no attribute delete is mounted."
   - id: R11
     name: item_variant_item_exists
+    entity: ItemVariant
     when: writing
     assert: "item_id references an existing non-deleted Item"
     error_code: item_not_found
+    enforced_by: "src/application/service/catalog_write_service.rs::create_item_variant, migrations/20260426220007_create_item_variant_table.up.sql::fk_item_variants_item_id"
+    justification: "Holds on the validated create; no item delete is mounted."
   - id: R12
     name: item_variant_unique_sku
+    entity: ItemVariant
     when: writing
     assert: "sku unique among non-deleted item variants"
     error_code: duplicate_sku
+    justification: "PARTLY: no module sku unique survives tenancy; the composing service's per-unit unique refuses, and create_item_variant labels any non-barcode unique violation duplicate_sku."
   - id: R13
     name: item_variant_options_valid
+    entity: ItemVariant
     when: writing
     assert: "each option {attribute_code: value_code} resolves to a real Attribute + AttributeValue"
     error_code: unknown_attribute_value
+    enforced_by: "src/application/service/catalog_write_service.rs::create_item_variant, src/infrastructure/persistence/attribute_value_repository.rs::find_value_with_attribute"
+    justification: "Holds on the validated create, which also refuses an empty option set (no_options) and flips the item's has_variants in the same transaction."
     note: "unknown axis → unknown_attribute; creating a variant flips Item.has_variants = true"
 
 # -----------------------------------------------------------------------------

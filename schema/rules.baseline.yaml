@@ -1,20 +1,12 @@
 # The rule ratchet (schema doctor): these counts may only go down. Regenerate with
 # `metaphor schema rules . --update-baseline` after enforcing a rule.
-unenforced: 15
-warnings: 15
+unenforced: 7
+warnings: 0
 machines_without_verbs: 0
 untested_rule_ids: 13
 unenforced_rules:
-- 'catalog.hook.yaml: attribute_value_attribute_exists'
-- 'catalog.hook.yaml: brand_exists'
 - 'catalog.hook.yaml: default_uom_exists'
-- 'catalog.hook.yaml: item_group_exists'
-- 'catalog.hook.yaml: item_group_parent_exists'
-- 'catalog.hook.yaml: item_has_a_usage'
-- 'catalog.hook.yaml: item_variant_item_exists'
-- 'catalog.hook.yaml: item_variant_options_valid'
 - 'catalog.hook.yaml: item_variant_unique_sku'
-- 'catalog.hook.yaml: non_physical_not_stockable'
 - 'catalog.hook.yaml: unique_barcode'
 - 'catalog.hook.yaml: unique_item_code'
 - 'catalog.hook.yaml: uom_conversion_distinct'
