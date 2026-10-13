@@ -196,15 +196,15 @@ impl CatalogModuleBuilder {
 
         // Attribute service
         let attribute_repository = Arc::new(AttributeRepository::new(db_pool.clone()));
-        let attribute_service = Arc::new(AttributeService::with_repository(attribute_repository.clone()));
+        let attribute_service = Arc::new(AttributeService::with_repository(attribute_repository.clone()).with_guard(Arc::new(crate::application::service::AttributeRowRules)));
 
         // AttributeValue service
         let attribute_value_repository = Arc::new(AttributeValueRepository::new(db_pool.clone()));
-        let attribute_value_service = Arc::new(AttributeValueService::with_repository(attribute_value_repository.clone()));
+        let attribute_value_service = Arc::new(AttributeValueService::with_repository(attribute_value_repository.clone()).with_guard(Arc::new(crate::application::service::AttributeValueRowRules)));
 
         // Brand service
         let brand_repository = Arc::new(BrandRepository::new(db_pool.clone()));
-        let brand_service = Arc::new(BrandService::with_repository(brand_repository.clone()));
+        let brand_service = Arc::new(BrandService::with_repository(brand_repository.clone()).with_guard(Arc::new(crate::application::service::BrandRowRules)));
 
         // Item service
         let item_repository = Arc::new(ItemRepository::new(db_pool.clone()));
@@ -216,15 +216,15 @@ impl CatalogModuleBuilder {
 
         // ItemVariant service
         let item_variant_repository = Arc::new(ItemVariantRepository::new(db_pool.clone()));
-        let item_variant_service = Arc::new(ItemVariantService::with_repository(item_variant_repository.clone()));
+        let item_variant_service = Arc::new(ItemVariantService::with_repository(item_variant_repository.clone()).with_guard(Arc::new(crate::application::service::ItemVariantRowRules)));
 
         // Uom service
         let uom_repository = Arc::new(UomRepository::new(db_pool.clone()));
-        let uom_service = Arc::new(UomService::with_repository(uom_repository.clone()));
+        let uom_service = Arc::new(UomService::with_repository(uom_repository.clone()).with_guard(Arc::new(crate::application::service::UomRowRules)));
 
         // UomConversion service
         let uom_conversion_repository = Arc::new(UomConversionRepository::new(db_pool.clone()));
-        let uom_conversion_service = Arc::new(UomConversionService::with_repository(uom_conversion_repository.clone()));
+        let uom_conversion_service = Arc::new(UomConversionService::with_repository(uom_conversion_repository.clone()).with_guard(Arc::new(crate::application::service::UomConversionRowRules)));
 
         // <<< CUSTOM
         let catalog_write_service = Arc::new(CatalogWriteService::new(db_pool.clone()));

@@ -32,3 +32,57 @@ pub type ItemVariantService = GenericCrudService<
     ItemVariantRepository,
 >;
 
+/// The rules the schema declares for ItemVariant, checked against the row a create or update
+/// would store. The generated build attaches it to [`ItemVariantService`]. A refusing rule's
+/// break answers 422; a rule in shadow is logged under `backbone::write_guard` and the
+/// write goes ahead.
+pub struct ItemVariantRowRules;
+
+#[async_trait::async_trait]
+impl backbone_core::write_guard::WriteGuard<ItemVariant> for ItemVariantRowRules {
+    async fn check(
+        &self,
+        ctx: &backbone_core::write_guard::WriteCtx<'_, ItemVariant>,
+    ) -> backbone_core::write_guard::GuardOutcome {
+        use backbone_core::row_rule as r;
+        use backbone_core::violation::Violation;
+        use backbone_core::write_guard::{GuardOutcome, WriteKind};
+        let (create, update) = (ctx.kind == WriteKind::Create, ctx.kind == WriteKind::Update);
+        let Some(after) = ctx.after.filter(|_| create || update) else {
+            return GuardOutcome::allow();
+        };
+        let Ok(row) = serde_json::to_value(after) else {
+            return GuardOutcome::allow();
+        };
+        let row = &row;
+        let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
+        let mut shadow = Vec::new();
+        let mut refuse = Vec::new();
+        // `item_id_required` (@required on ItemVariant.item_id)
+        if (create || (update && r::changed(old.as_ref(), row, &["item_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "item_id")), r::not(r::is_empty(r::trim(r::field(row, "item_id")))))) {
+            refuse.push(Violation::new("item_id", "required", "item_id is required"));
+        }
+        // `sku_required` (@required on ItemVariant.sku)
+        if (create || (update && r::changed(old.as_ref(), row, &["sku"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "sku")), r::not(r::is_empty(r::trim(r::field(row, "sku")))))) {
+            refuse.push(Violation::new("sku", "required", "sku is required"));
+        }
+        // `sku_max_length` (@max(60) on ItemVariant.sku)
+        if (create || (update && r::changed(old.as_ref(), row, &["sku"]))) && !r::holds(&r::le(r::length(r::field(row, "sku")), r::Val::Num(60.0_f64))) {
+            shadow.push(Violation::new("sku", "max_length", "sku must be at most 60 characters").with_param("max", 60_i64));
+        }
+        // `variant_label_required` (@required on ItemVariant.variant_label)
+        if (create || (update && r::changed(old.as_ref(), row, &["variant_label"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "variant_label")), r::not(r::is_empty(r::trim(r::field(row, "variant_label")))))) {
+            refuse.push(Violation::new("variant_label", "required", "variant_label is required"));
+        }
+        // `variant_label_max_length` (@max(200) on ItemVariant.variant_label)
+        if (create || (update && r::changed(old.as_ref(), row, &["variant_label"]))) && !r::holds(&r::le(r::length(r::field(row, "variant_label")), r::Val::Num(200.0_f64))) {
+            shadow.push(Violation::new("variant_label", "max_length", "variant_label must be at most 200 characters").with_param("max", 200_i64));
+        }
+        // `barcode_max_length` (@max(60) on ItemVariant.barcode)
+        if (create || (update && r::changed(old.as_ref(), row, &["barcode"]))) && !r::holds(&r::le(r::length(r::field(row, "barcode")), r::Val::Num(60.0_f64))) {
+            shadow.push(Violation::new("barcode", "max_length", "barcode must be at most 60 characters").with_param("max", 60_i64));
+        }
+        GuardOutcome { refuse, shadow }
+    }
+}
+

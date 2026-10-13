@@ -32,3 +32,45 @@ pub type UomConversionService = GenericCrudService<
     UomConversionRepository,
 >;
 
+/// The rules the schema declares for UomConversion, checked against the row a create or update
+/// would store. The generated build attaches it to [`UomConversionService`]. A refusing rule's
+/// break answers 422; a rule in shadow is logged under `backbone::write_guard` and the
+/// write goes ahead.
+pub struct UomConversionRowRules;
+
+#[async_trait::async_trait]
+impl backbone_core::write_guard::WriteGuard<UomConversion> for UomConversionRowRules {
+    async fn check(
+        &self,
+        ctx: &backbone_core::write_guard::WriteCtx<'_, UomConversion>,
+    ) -> backbone_core::write_guard::GuardOutcome {
+        use backbone_core::row_rule as r;
+        use backbone_core::violation::Violation;
+        use backbone_core::write_guard::{GuardOutcome, WriteKind};
+        let (create, update) = (ctx.kind == WriteKind::Create, ctx.kind == WriteKind::Update);
+        let Some(after) = ctx.after.filter(|_| create || update) else {
+            return GuardOutcome::allow();
+        };
+        let Ok(row) = serde_json::to_value(after) else {
+            return GuardOutcome::allow();
+        };
+        let row = &row;
+        let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
+        let mut shadow = Vec::new();
+        let mut refuse = Vec::new();
+        // `from_uom_id_required` (@required on UomConversion.from_uom_id)
+        if (create || (update && r::changed(old.as_ref(), row, &["from_uom_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "from_uom_id")), r::not(r::is_empty(r::trim(r::field(row, "from_uom_id")))))) {
+            refuse.push(Violation::new("from_uom_id", "required", "from_uom_id is required"));
+        }
+        // `to_uom_id_required` (@required on UomConversion.to_uom_id)
+        if (create || (update && r::changed(old.as_ref(), row, &["to_uom_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "to_uom_id")), r::not(r::is_empty(r::trim(r::field(row, "to_uom_id")))))) {
+            refuse.push(Violation::new("to_uom_id", "required", "to_uom_id is required"));
+        }
+        // `factor_positive` (@positive on UomConversion.factor)
+        if (create || (update && r::changed(old.as_ref(), row, &["factor"]))) && !r::holds(&r::gt(r::field(row, "factor"), r::Val::Num(0.0_f64))) {
+            shadow.push(Violation::new("factor", "positive", "factor must be positive"));
+        }
+        GuardOutcome { refuse, shadow }
+    }
+}
+

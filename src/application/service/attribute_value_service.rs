@@ -32,3 +32,65 @@ pub type AttributeValueService = GenericCrudService<
     AttributeValueRepository,
 >;
 
+/// The rules the schema declares for AttributeValue, checked against the row a create or update
+/// would store. The generated build attaches it to [`AttributeValueService`]. A refusing rule's
+/// break answers 422; a rule in shadow is logged under `backbone::write_guard` and the
+/// write goes ahead.
+pub struct AttributeValueRowRules;
+
+#[async_trait::async_trait]
+impl backbone_core::write_guard::WriteGuard<AttributeValue> for AttributeValueRowRules {
+    async fn check(
+        &self,
+        ctx: &backbone_core::write_guard::WriteCtx<'_, AttributeValue>,
+    ) -> backbone_core::write_guard::GuardOutcome {
+        use backbone_core::row_rule as r;
+        use backbone_core::violation::Violation;
+        use backbone_core::write_guard::{GuardOutcome, WriteKind};
+        let (create, update) = (ctx.kind == WriteKind::Create, ctx.kind == WriteKind::Update);
+        let Some(after) = ctx.after.filter(|_| create || update) else {
+            return GuardOutcome::allow();
+        };
+        let Ok(row) = serde_json::to_value(after) else {
+            return GuardOutcome::allow();
+        };
+        let row = &row;
+        let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
+        let mut shadow = Vec::new();
+        let mut refuse = Vec::new();
+        // `attribute_id_required` (@required on AttributeValue.attribute_id)
+        if (create || (update && r::changed(old.as_ref(), row, &["attribute_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "attribute_id")), r::not(r::is_empty(r::trim(r::field(row, "attribute_id")))))) {
+            refuse.push(Violation::new("attribute_id", "required", "attribute_id is required"));
+        }
+        // `code_required` (@required on AttributeValue.code)
+        if (create || (update && r::changed(old.as_ref(), row, &["code"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "code")), r::not(r::is_empty(r::trim(r::field(row, "code")))))) {
+            refuse.push(Violation::new("code", "required", "code is required"));
+        }
+        // `code_max_length` (@max(40) on AttributeValue.code)
+        if (create || (update && r::changed(old.as_ref(), row, &["code"]))) && !r::holds(&r::le(r::length(r::field(row, "code")), r::Val::Num(40.0_f64))) {
+            shadow.push(Violation::new("code", "max_length", "code must be at most 40 characters").with_param("max", 40_i64));
+        }
+        // `label_required` (@required on AttributeValue.label)
+        if (create || (update && r::changed(old.as_ref(), row, &["label"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "label")), r::not(r::is_empty(r::trim(r::field(row, "label")))))) {
+            refuse.push(Violation::new("label", "required", "label is required"));
+        }
+        // `label_max_length` (@max(100) on AttributeValue.label)
+        if (create || (update && r::changed(old.as_ref(), row, &["label"]))) && !r::holds(&r::le(r::length(r::field(row, "label")), r::Val::Num(100.0_f64))) {
+            shadow.push(Violation::new("label", "max_length", "label must be at most 100 characters").with_param("max", 100_i64));
+        }
+        // `label_en_max_length` (@max(100) on AttributeValue.label_en)
+        if (create || (update && r::changed(old.as_ref(), row, &["label_en"]))) && !r::holds(&r::le(r::length(r::field(row, "label_en")), r::Val::Num(100.0_f64))) {
+            shadow.push(Violation::new("label_en", "max_length", "label_en must be at most 100 characters").with_param("max", 100_i64));
+        }
+        // `swatch_hex_max_length` (@max(10) on AttributeValue.swatch_hex)
+        if (create || (update && r::changed(old.as_ref(), row, &["swatch_hex"]))) && !r::holds(&r::le(r::length(r::field(row, "swatch_hex")), r::Val::Num(10.0_f64))) {
+            shadow.push(Violation::new("swatch_hex", "max_length", "swatch_hex must be at most 10 characters").with_param("max", 10_i64));
+        }
+        // `icon_max_length` (@max(255) on AttributeValue.icon)
+        if (create || (update && r::changed(old.as_ref(), row, &["icon"]))) && !r::holds(&r::le(r::length(r::field(row, "icon")), r::Val::Num(255.0_f64))) {
+            shadow.push(Violation::new("icon", "max_length", "icon must be at most 255 characters").with_param("max", 255_i64));
+        }
+        GuardOutcome { refuse, shadow }
+    }
+}
+

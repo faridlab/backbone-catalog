@@ -25,8 +25,14 @@ pub use item_group_service::ItemGroupService;
 pub use item_variant_service::ItemVariantService;
 pub use uom_service::UomService;
 pub use uom_conversion_service::UomConversionService;
+pub use attribute_service::AttributeRowRules;
+pub use attribute_value_service::AttributeValueRowRules;
+pub use brand_service::BrandRowRules;
 pub use item_service::ItemRowRules;
 pub use item_group_service::ItemGroupRowRules;
+pub use item_variant_service::ItemVariantRowRules;
+pub use uom_service::UomRowRules;
+pub use uom_conversion_service::UomConversionRowRules;
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");
