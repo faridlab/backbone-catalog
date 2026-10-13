@@ -56,7 +56,7 @@ impl backbone_core::write_guard::WriteGuard<AttributeValue> for AttributeValueRo
         };
         let row = &row;
         let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
-        let mut shadow = Vec::new();
+        let shadow = Vec::new();
         let mut refuse = Vec::new();
         // `attribute_id_required` (@required on AttributeValue.attribute_id)
         if (create || (update && r::changed(old.as_ref(), row, &["attribute_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "attribute_id")), r::not(r::is_empty(r::trim(r::field(row, "attribute_id")))))) {
@@ -68,7 +68,7 @@ impl backbone_core::write_guard::WriteGuard<AttributeValue> for AttributeValueRo
         }
         // `code_max_length` (@max(40) on AttributeValue.code)
         if (create || (update && r::changed(old.as_ref(), row, &["code"]))) && !r::holds(&r::le(r::length(r::field(row, "code")), r::Val::Num(40.0_f64))) {
-            shadow.push(Violation::new("code", "max_length", "code must be at most 40 characters").with_param("max", 40_i64));
+            refuse.push(Violation::new("code", "max_length", "code must be at most 40 characters").with_param("max", 40_i64));
         }
         // `label_required` (@required on AttributeValue.label)
         if (create || (update && r::changed(old.as_ref(), row, &["label"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "label")), r::not(r::is_empty(r::trim(r::field(row, "label")))))) {
@@ -76,19 +76,19 @@ impl backbone_core::write_guard::WriteGuard<AttributeValue> for AttributeValueRo
         }
         // `label_max_length` (@max(100) on AttributeValue.label)
         if (create || (update && r::changed(old.as_ref(), row, &["label"]))) && !r::holds(&r::le(r::length(r::field(row, "label")), r::Val::Num(100.0_f64))) {
-            shadow.push(Violation::new("label", "max_length", "label must be at most 100 characters").with_param("max", 100_i64));
+            refuse.push(Violation::new("label", "max_length", "label must be at most 100 characters").with_param("max", 100_i64));
         }
         // `label_en_max_length` (@max(100) on AttributeValue.label_en)
         if (create || (update && r::changed(old.as_ref(), row, &["label_en"]))) && !r::holds(&r::le(r::length(r::field(row, "label_en")), r::Val::Num(100.0_f64))) {
-            shadow.push(Violation::new("label_en", "max_length", "label_en must be at most 100 characters").with_param("max", 100_i64));
+            refuse.push(Violation::new("label_en", "max_length", "label_en must be at most 100 characters").with_param("max", 100_i64));
         }
         // `swatch_hex_max_length` (@max(10) on AttributeValue.swatch_hex)
         if (create || (update && r::changed(old.as_ref(), row, &["swatch_hex"]))) && !r::holds(&r::le(r::length(r::field(row, "swatch_hex")), r::Val::Num(10.0_f64))) {
-            shadow.push(Violation::new("swatch_hex", "max_length", "swatch_hex must be at most 10 characters").with_param("max", 10_i64));
+            refuse.push(Violation::new("swatch_hex", "max_length", "swatch_hex must be at most 10 characters").with_param("max", 10_i64));
         }
         // `icon_max_length` (@max(255) on AttributeValue.icon)
         if (create || (update && r::changed(old.as_ref(), row, &["icon"]))) && !r::holds(&r::le(r::length(r::field(row, "icon")), r::Val::Num(255.0_f64))) {
-            shadow.push(Violation::new("icon", "max_length", "icon must be at most 255 characters").with_param("max", 255_i64));
+            refuse.push(Violation::new("icon", "max_length", "icon must be at most 255 characters").with_param("max", 255_i64));
         }
         GuardOutcome { refuse, shadow }
     }

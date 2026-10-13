@@ -56,7 +56,7 @@ impl backbone_core::write_guard::WriteGuard<Uom> for UomRowRules {
         };
         let row = &row;
         let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
-        let mut shadow = Vec::new();
+        let shadow = Vec::new();
         let mut refuse = Vec::new();
         // `code_required` (@required on Uom.code)
         if (create || (update && r::changed(old.as_ref(), row, &["code"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "code")), r::not(r::is_empty(r::trim(r::field(row, "code")))))) {
@@ -64,7 +64,7 @@ impl backbone_core::write_guard::WriteGuard<Uom> for UomRowRules {
         }
         // `code_max_length` (@max(20) on Uom.code)
         if (create || (update && r::changed(old.as_ref(), row, &["code"]))) && !r::holds(&r::le(r::length(r::field(row, "code")), r::Val::Num(20.0_f64))) {
-            shadow.push(Violation::new("code", "max_length", "code must be at most 20 characters").with_param("max", 20_i64));
+            refuse.push(Violation::new("code", "max_length", "code must be at most 20 characters").with_param("max", 20_i64));
         }
         // `name_required` (@required on Uom.name)
         if (create || (update && r::changed(old.as_ref(), row, &["name"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "name")), r::not(r::is_empty(r::trim(r::field(row, "name")))))) {
@@ -72,23 +72,23 @@ impl backbone_core::write_guard::WriteGuard<Uom> for UomRowRules {
         }
         // `name_max_length` (@max(80) on Uom.name)
         if (create || (update && r::changed(old.as_ref(), row, &["name"]))) && !r::holds(&r::le(r::length(r::field(row, "name")), r::Val::Num(80.0_f64))) {
-            shadow.push(Violation::new("name", "max_length", "name must be at most 80 characters").with_param("max", 80_i64));
+            refuse.push(Violation::new("name", "max_length", "name must be at most 80 characters").with_param("max", 80_i64));
         }
         // `decimal_places_min` (@min(0) on Uom.decimal_places)
         if (create || (update && r::changed(old.as_ref(), row, &["decimal_places"]))) && !r::holds(&r::ge(r::field(row, "decimal_places"), r::Val::Num(0.0_f64))) {
-            shadow.push(Violation::new("decimal_places", "min", "decimal_places must be at least 0").with_param("min", 0_i64));
+            refuse.push(Violation::new("decimal_places", "min", "decimal_places must be at least 0").with_param("min", 0_i64));
         }
         // `decimal_places_max` (@max(6) on Uom.decimal_places)
         if (create || (update && r::changed(old.as_ref(), row, &["decimal_places"]))) && !r::holds(&r::le(r::field(row, "decimal_places"), r::Val::Num(6.0_f64))) {
-            shadow.push(Violation::new("decimal_places", "max", "decimal_places must be at most 6").with_param("max", 6_i64));
+            refuse.push(Violation::new("decimal_places", "max", "decimal_places must be at most 6").with_param("max", 6_i64));
         }
         // `relative_factor_positive` (@positive on Uom.relative_factor)
         if (create || (update && r::changed(old.as_ref(), row, &["relative_factor"]))) && !r::holds(&r::gt(r::field(row, "relative_factor"), r::Val::Num(0.0_f64))) {
-            shadow.push(Violation::new("relative_factor", "positive", "relative_factor must be positive"));
+            refuse.push(Violation::new("relative_factor", "positive", "relative_factor must be positive"));
         }
         // `factor_positive` (@positive on Uom.factor)
         if (create || (update && r::changed(old.as_ref(), row, &["factor"]))) && !r::holds(&r::gt(r::field(row, "factor"), r::Val::Num(0.0_f64))) {
-            shadow.push(Violation::new("factor", "positive", "factor must be positive"));
+            refuse.push(Violation::new("factor", "positive", "factor must be positive"));
         }
         GuardOutcome { refuse, shadow }
     }

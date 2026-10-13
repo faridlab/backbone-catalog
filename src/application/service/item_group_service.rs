@@ -68,7 +68,7 @@ impl backbone_core::write_guard::WriteGuard<ItemGroup> for ItemGroupRowRules {
         }
         // `code_max_length` (@max(40) on ItemGroup.code)
         if (create || (update && r::changed(old.as_ref(), row, &["code"]))) && !r::holds(&r::le(r::length(r::field(row, "code")), r::Val::Num(40.0_f64))) {
-            shadow.push(Violation::new("code", "max_length", "code must be at most 40 characters").with_param("max", 40_i64));
+            refuse.push(Violation::new("code", "max_length", "code must be at most 40 characters").with_param("max", 40_i64));
         }
         // `name_required` (@required on ItemGroup.name)
         if (create || (update && r::changed(old.as_ref(), row, &["name"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "name")), r::not(r::is_empty(r::trim(r::field(row, "name")))))) {
@@ -76,11 +76,11 @@ impl backbone_core::write_guard::WriteGuard<ItemGroup> for ItemGroupRowRules {
         }
         // `name_max_length` (@max(150) on ItemGroup.name)
         if (create || (update && r::changed(old.as_ref(), row, &["name"]))) && !r::holds(&r::le(r::length(r::field(row, "name")), r::Val::Num(150.0_f64))) {
-            shadow.push(Violation::new("name", "max_length", "name must be at most 150 characters").with_param("max", 150_i64));
+            refuse.push(Violation::new("name", "max_length", "name must be at most 150 characters").with_param("max", 150_i64));
         }
         // `level_non_negative` (@non_negative on ItemGroup.level)
         if (create || (update && r::changed(old.as_ref(), row, &["level"]))) && !r::holds(&r::ge(r::field(row, "level"), r::Val::Num(0.0_f64))) {
-            shadow.push(Violation::new("level", "non_negative", "level must not be negative"));
+            refuse.push(Violation::new("level", "non_negative", "level must not be negative"));
         }
         GuardOutcome { refuse, shadow }
     }

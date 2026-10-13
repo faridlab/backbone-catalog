@@ -56,7 +56,7 @@ impl backbone_core::write_guard::WriteGuard<ItemVariant> for ItemVariantRowRules
         };
         let row = &row;
         let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
-        let mut shadow = Vec::new();
+        let shadow = Vec::new();
         let mut refuse = Vec::new();
         // `item_id_required` (@required on ItemVariant.item_id)
         if (create || (update && r::changed(old.as_ref(), row, &["item_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "item_id")), r::not(r::is_empty(r::trim(r::field(row, "item_id")))))) {
@@ -68,7 +68,7 @@ impl backbone_core::write_guard::WriteGuard<ItemVariant> for ItemVariantRowRules
         }
         // `sku_max_length` (@max(60) on ItemVariant.sku)
         if (create || (update && r::changed(old.as_ref(), row, &["sku"]))) && !r::holds(&r::le(r::length(r::field(row, "sku")), r::Val::Num(60.0_f64))) {
-            shadow.push(Violation::new("sku", "max_length", "sku must be at most 60 characters").with_param("max", 60_i64));
+            refuse.push(Violation::new("sku", "max_length", "sku must be at most 60 characters").with_param("max", 60_i64));
         }
         // `variant_label_required` (@required on ItemVariant.variant_label)
         if (create || (update && r::changed(old.as_ref(), row, &["variant_label"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "variant_label")), r::not(r::is_empty(r::trim(r::field(row, "variant_label")))))) {
@@ -76,11 +76,11 @@ impl backbone_core::write_guard::WriteGuard<ItemVariant> for ItemVariantRowRules
         }
         // `variant_label_max_length` (@max(200) on ItemVariant.variant_label)
         if (create || (update && r::changed(old.as_ref(), row, &["variant_label"]))) && !r::holds(&r::le(r::length(r::field(row, "variant_label")), r::Val::Num(200.0_f64))) {
-            shadow.push(Violation::new("variant_label", "max_length", "variant_label must be at most 200 characters").with_param("max", 200_i64));
+            refuse.push(Violation::new("variant_label", "max_length", "variant_label must be at most 200 characters").with_param("max", 200_i64));
         }
         // `barcode_max_length` (@max(60) on ItemVariant.barcode)
         if (create || (update && r::changed(old.as_ref(), row, &["barcode"]))) && !r::holds(&r::le(r::length(r::field(row, "barcode")), r::Val::Num(60.0_f64))) {
-            shadow.push(Violation::new("barcode", "max_length", "barcode must be at most 60 characters").with_param("max", 60_i64));
+            refuse.push(Violation::new("barcode", "max_length", "barcode must be at most 60 characters").with_param("max", 60_i64));
         }
         GuardOutcome { refuse, shadow }
     }

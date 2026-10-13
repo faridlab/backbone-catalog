@@ -68,7 +68,7 @@ impl backbone_core::write_guard::WriteGuard<Item> for ItemRowRules {
         }
         // `item_code_max_length` (@max(60) on Item.item_code)
         if (create || (update && r::changed(old.as_ref(), row, &["item_code"]))) && !r::holds(&r::le(r::length(r::field(row, "item_code")), r::Val::Num(60.0_f64))) {
-            shadow.push(Violation::new("item_code", "max_length", "item_code must be at most 60 characters").with_param("max", 60_i64));
+            refuse.push(Violation::new("item_code", "max_length", "item_code must be at most 60 characters").with_param("max", 60_i64));
         }
         // `name_required` (@required on Item.name)
         if (create || (update && r::changed(old.as_ref(), row, &["name"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "name")), r::not(r::is_empty(r::trim(r::field(row, "name")))))) {
@@ -76,15 +76,15 @@ impl backbone_core::write_guard::WriteGuard<Item> for ItemRowRules {
         }
         // `name_max_length` (@max(200) on Item.name)
         if (create || (update && r::changed(old.as_ref(), row, &["name"]))) && !r::holds(&r::le(r::length(r::field(row, "name")), r::Val::Num(200.0_f64))) {
-            shadow.push(Violation::new("name", "max_length", "name must be at most 200 characters").with_param("max", 200_i64));
+            refuse.push(Violation::new("name", "max_length", "name must be at most 200 characters").with_param("max", 200_i64));
         }
         // `description_max_length` (@max(2000) on Item.description)
         if (create || (update && r::changed(old.as_ref(), row, &["description"]))) && !r::holds(&r::le(r::length(r::field(row, "description")), r::Val::Num(2000.0_f64))) {
-            shadow.push(Violation::new("description", "max_length", "description must be at most 2000 characters").with_param("max", 2000_i64));
+            refuse.push(Violation::new("description", "max_length", "description must be at most 2000 characters").with_param("max", 2000_i64));
         }
         // `barcode_max_length` (@max(60) on Item.barcode)
         if (create || (update && r::changed(old.as_ref(), row, &["barcode"]))) && !r::holds(&r::le(r::length(r::field(row, "barcode")), r::Val::Num(60.0_f64))) {
-            shadow.push(Violation::new("barcode", "max_length", "barcode must be at most 60 characters").with_param("max", 60_i64));
+            refuse.push(Violation::new("barcode", "max_length", "barcode must be at most 60 characters").with_param("max", 60_i64));
         }
         // `item_group_id_required` (@required on Item.item_group_id)
         if (create || (update && r::changed(old.as_ref(), row, &["item_group_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "item_group_id")), r::not(r::is_empty(r::trim(r::field(row, "item_group_id")))))) {
@@ -96,19 +96,19 @@ impl backbone_core::write_guard::WriteGuard<Item> for ItemRowRules {
         }
         // `hsn_code_max_length` (@max(20) on Item.hsn_code)
         if (create || (update && r::changed(old.as_ref(), row, &["hsn_code"]))) && !r::holds(&r::le(r::length(r::field(row, "hsn_code")), r::Val::Num(20.0_f64))) {
-            shadow.push(Violation::new("hsn_code", "max_length", "hsn_code must be at most 20 characters").with_param("max", 20_i64));
+            refuse.push(Violation::new("hsn_code", "max_length", "hsn_code must be at most 20 characters").with_param("max", 20_i64));
         }
         // `sni_max_length` (@max(30) on Item.sni)
         if (create || (update && r::changed(old.as_ref(), row, &["sni"]))) && !r::holds(&r::le(r::length(r::field(row, "sni")), r::Val::Num(30.0_f64))) {
-            shadow.push(Violation::new("sni", "max_length", "sni must be at most 30 characters").with_param("max", 30_i64));
+            refuse.push(Violation::new("sni", "max_length", "sni must be at most 30 characters").with_param("max", 30_i64));
         }
         // `shelf_life_days_non_negative` (@non_negative on Item.shelf_life_days)
         if (create || (update && r::changed(old.as_ref(), row, &["shelf_life_days"]))) && !r::holds(&r::ge(r::field(row, "shelf_life_days"), r::Val::Num(0.0_f64))) {
-            shadow.push(Violation::new("shelf_life_days", "non_negative", "shelf_life_days must not be negative"));
+            refuse.push(Violation::new("shelf_life_days", "non_negative", "shelf_life_days must not be negative"));
         }
         // `standard_cost_non_negative` (@non_negative on Item.standard_cost)
         if (create || (update && r::changed(old.as_ref(), row, &["standard_cost"]))) && !r::holds(&r::ge(r::field(row, "standard_cost"), r::Val::Num(0.0_f64))) {
-            shadow.push(Violation::new("standard_cost", "non_negative", "standard_cost must not be negative"));
+            refuse.push(Violation::new("standard_cost", "non_negative", "standard_cost must not be negative"));
         }
         GuardOutcome { refuse, shadow }
     }

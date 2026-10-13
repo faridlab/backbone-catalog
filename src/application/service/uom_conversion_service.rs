@@ -56,7 +56,7 @@ impl backbone_core::write_guard::WriteGuard<UomConversion> for UomConversionRowR
         };
         let row = &row;
         let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
-        let mut shadow = Vec::new();
+        let shadow = Vec::new();
         let mut refuse = Vec::new();
         // `from_uom_id_required` (@required on UomConversion.from_uom_id)
         if (create || (update && r::changed(old.as_ref(), row, &["from_uom_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "from_uom_id")), r::not(r::is_empty(r::trim(r::field(row, "from_uom_id")))))) {
@@ -68,7 +68,7 @@ impl backbone_core::write_guard::WriteGuard<UomConversion> for UomConversionRowR
         }
         // `factor_positive` (@positive on UomConversion.factor)
         if (create || (update && r::changed(old.as_ref(), row, &["factor"]))) && !r::holds(&r::gt(r::field(row, "factor"), r::Val::Num(0.0_f64))) {
-            shadow.push(Violation::new("factor", "positive", "factor must be positive"));
+            refuse.push(Violation::new("factor", "positive", "factor must be positive"));
         }
         GuardOutcome { refuse, shadow }
     }
