@@ -86,17 +86,17 @@ rules:
   - id: R7
     name: uom_conversion_distinct
     entity: UomConversion
-    when: writing
+    when: [create, update]
     assert: "from_uom_id != to_uom_id"
     error_code: same_uom
-    justification: "No writer: the guarded surface mounts UoM conversions read-only and no verb writes them, so the rule holds by absence; the generic write routes behind the unguarded feature write them unchecked, and same_uom is never produced."
+    justification: "Compiled into the generated write guard, so every create and update of a conversion, including the generic write routes, refuses a conversion from a unit to itself with same_uom."
   - id: R8
     name: uom_conversion_positive
     entity: UomConversion
-    when: writing
+    when: [create, update]
     assert: "factor > 0"
     error_code: non_positive_factor
-    justification: "No writer, as uom_conversion_distinct; uoms_factor_positive_chk guards the UoM tree's factor, not a conversion's, and non_positive_factor is never produced."
+    justification: "Compiled into the generated write guard, so every create and update of a conversion refuses a zero or negative factor with non_positive_factor; uoms_factor_positive_chk guards the UoM tree's own factor, not a conversion's."
   - id: R9
     name: uom_conversion_uoms_exist
     entity: UomConversion
@@ -158,10 +158,4 @@ rules:
 # -----------------------------------------------------------------------------
 # Domain events (emission is the parent service's responsibility).
 # -----------------------------------------------------------------------------
-events:
-  ItemCreated:
-    when: "an item is created"
-    payload: [item_id, item_code, item_group_id]
-  ItemDiscontinued:
-    when: "an item is discontinued"
-    payload: [item_id]
+events: {}

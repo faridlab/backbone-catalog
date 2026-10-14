@@ -34,5 +34,69 @@ pub use item_variant_service::ItemVariantRowRules;
 pub use uom_service::UomRowRules;
 pub use uom_conversion_service::UomConversionRowRules;
 
+/// A `AttributeService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_attribute_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::AttributeRepository>,
+) -> AttributeService {
+    AttributeService::with_repository(repository).with_guard(std::sync::Arc::new(AttributeRowRules))
+}
+
+/// A `AttributeValueService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_attribute_value_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::AttributeValueRepository>,
+) -> AttributeValueService {
+    AttributeValueService::with_repository(repository).with_guard(std::sync::Arc::new(AttributeValueRowRules))
+}
+
+/// A `BrandService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_brand_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::BrandRepository>,
+) -> BrandService {
+    BrandService::with_repository(repository).with_guard(std::sync::Arc::new(BrandRowRules))
+}
+
+/// A `ItemService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_item_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::ItemRepository>,
+) -> ItemService {
+    ItemService::with_repository(repository).with_guard(std::sync::Arc::new(ItemRowRules))
+}
+
+/// A `ItemGroupService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_item_group_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::ItemGroupRepository>,
+) -> ItemGroupService {
+    ItemGroupService::with_repository(repository).with_guard(std::sync::Arc::new(ItemGroupRowRules))
+}
+
+/// A `ItemVariantService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_item_variant_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::ItemVariantRepository>,
+) -> ItemVariantService {
+    ItemVariantService::with_repository(repository).with_guard(std::sync::Arc::new(ItemVariantRowRules))
+}
+
+/// A `UomService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_uom_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::UomRepository>,
+) -> UomService {
+    UomService::with_repository(repository).with_guard(std::sync::Arc::new(UomRowRules))
+}
+
+/// A `UomConversionService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_uom_conversion_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::UomConversionRepository>,
+) -> UomConversionService {
+    UomConversionService::with_repository(repository).with_guard(std::sync::Arc::new(UomConversionRowRules))
+}
+
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");
