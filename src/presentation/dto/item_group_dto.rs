@@ -43,7 +43,6 @@ pub struct CreateItemGroupDto {
     #[cfg_attr(feature = "openapi", schema(example = 42))]
     #[serde(alias = "sort_order")]
     pub sort_order: i32,
-    pub status: CatalogStatus,
 }
 
 // =============================================================================
@@ -247,7 +246,7 @@ impl From<CreateItemGroupDto> for ItemGroup {
             is_group: dto.is_group,
             level: dto.level,
             sort_order: dto.sort_order,
-            status: dto.status,
+            status: CatalogStatus::Active,
             metadata: AuditMetadata::default(),
         }
     }

@@ -77,7 +77,6 @@ pub struct CreateItemDto {
     pub standard_cost: Option<Decimal>,
     pub tags: serde_json::Value,
     pub data: serde_json::Value,
-    pub status: CatalogStatus,
 }
 
 // =============================================================================
@@ -391,7 +390,7 @@ impl From<CreateItemDto> for Item {
             standard_cost: dto.standard_cost,
             tags: dto.tags,
             data: dto.data,
-            status: dto.status,
+            status: CatalogStatus::Active,
             metadata: AuditMetadata::default(),
         }
     }
