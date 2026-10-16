@@ -70,11 +70,11 @@ impl backbone_core::write_guard::WriteGuard<UomConversion> for UomConversionRowR
         if (create || (update && r::changed(old.as_ref(), row, &["factor"]))) && !r::holds(&r::gt(r::field(row, "factor"), r::Val::Num(0.0_f64))) {
             refuse.push(Violation::new("factor", "positive", "factor must be positive"));
         }
-        // `uom_conversion_distinct` (catalog.hook.yaml:86)
+        // `uom_conversion_distinct` (catalog.hook.yaml:87)
         if (create || update) && !r::holds(&r::ne(r::field(row, "from_uom_id"), r::field(row, "to_uom_id"))) {
             refuse.push(Violation::new("from_uom_id", "same_uom", "breaks the rule `uom_conversion_distinct`: from_uom_id != to_uom_id"));
         }
-        // `uom_conversion_positive` (catalog.hook.yaml:93)
+        // `uom_conversion_positive` (catalog.hook.yaml:94)
         if (create || update) && !r::holds(&r::gt(r::field(row, "factor"), r::Val::Num(0.0_f64))) {
             refuse.push(Violation::new("factor", "non_positive_factor", "breaks the rule `uom_conversion_positive`: factor > 0"));
         }

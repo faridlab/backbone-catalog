@@ -43,6 +43,7 @@ user_owned:
   # + codegen-invariant guards (hand-written safety gates that regen would otherwise strip)
   # + the tenancy posture probe (half-fence pin: RLS flags armed, module ships no policy).
   - "tests/catalog_golden_cases.rs"
+  - "tests/uom_delete_races.rs"
   - "tests/item_lookup.rs"
   - "tests/integrity_probes.rs"
   - "tests/codegen_invariants.rs"

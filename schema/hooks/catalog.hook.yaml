@@ -52,7 +52,8 @@ rules:
     when: writing
     assert: "default_uom_id references an existing non-deleted Uom"
     error_code: uom_not_found
-    justification: "PARTLY: create_item checks the UoM without a lock, and delete_uom is mounted: it checks for live items unlocked and then soft-deletes, so a concurrent create can commit an item on a UoM retired in between. The foreign key does not see soft deletes."
+    enforced_by: "src/infrastructure/persistence/uom_repository.rs::share_live_on, src/application/service/catalog_write_service.rs::delete_uom"
+    justification: "create_item reads its unit live with FOR SHARE held to its commit, and delete_uom locks the unit FOR UPDATE before it probes for items, so a create waits for a delete under way and then finds no live unit, and a delete waits for a create under way and then finds its item (tests/uom_delete_races.rs). create_item is the only writer of an item's unit on the composed surface. The foreign key does not see soft deletes."
   - id: R3
     name: item_has_a_usage
     entity: Item

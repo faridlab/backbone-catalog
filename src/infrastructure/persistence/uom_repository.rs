@@ -79,6 +79,20 @@ impl UomRepository {
         Ok(found.is_some())
     }
 
+    /// Whether the unit is live, share-locking it for the caller's transaction: an item created
+    /// on it holds the lock until it commits, so a delete of the unit waits and then finds the
+    /// item, and a create that comes after a delete finds no live unit.
+    pub async fn share_live_on(&self, conn: &mut sqlx::PgConnection, id: Uuid) -> Result<bool, sqlx::Error> {
+        let found: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM catalog.uoms \
+             WHERE id = $1 AND (metadata->>'deleted_at') IS NULL FOR SHARE",
+        )
+        .bind(id)
+        .fetch_optional(conn)
+        .await?;
+        Ok(found.is_some())
+    }
+
     /// Stored effective factor of one live unit (`None` if the unit does not exist).
     /// Used to compute a child unit's stored factor at insert time.
     pub async fn find_factor(

@@ -356,7 +356,9 @@ impl CatalogWriteService {
         if !item_groups.exists_id(&mut *tx, i.item_group_id).await? {
             return Err(CatalogWriteError::ItemGroupNotFound(i.item_group_id));
         }
-        if !uoms.exists_id(&mut *tx, i.default_uom_id).await? {
+        // Share-locked to the commit: a delete of the unit cannot slip in between this check and
+        // the item that names it.
+        if !uoms.share_live_on(&mut tx, i.default_uom_id).await? {
             return Err(CatalogWriteError::UomNotFound(i.default_uom_id));
         }
         if let Some(bid) = i.brand_id {
@@ -562,10 +564,12 @@ impl CatalogWriteService {
         Self::relay_ambient_scope(&mut tx).await?;
 
         // All probes run on the transaction connection so the protection state cannot
-        // change between the checks and the archive write.
+        // change between the checks and the archive write. The unit is locked first: an item
+        // being created on it holds a share lock, so the in-use probe below sees that item once
+        // its create commits, and a create after this one finds the unit gone.
         let code: Option<String> = sqlx::query_scalar(
             "SELECT code FROM catalog.uoms \
-             WHERE id = $1 AND (metadata->>'deleted_at') IS NULL",
+             WHERE id = $1 AND (metadata->>'deleted_at') IS NULL FOR UPDATE",
         )
         .bind(uom_id)
         .fetch_optional(&mut *tx)
