@@ -1,6 +1,6 @@
 # The rule ratchet (schema doctor): these counts may only go down. Regenerate with
 # `metaphor schema rules . --update-baseline` after enforcing a rule.
-unenforced: 4
+unenforced: 3
 warnings: 0
 machines_without_verbs: 0
 untested_rule_ids: 13
@@ -8,7 +8,6 @@ unenforced_rules:
 - 'catalog.hook.yaml: item_variant_unique_sku'
 - 'catalog.hook.yaml: unique_barcode'
 - 'catalog.hook.yaml: unique_item_code'
-- 'catalog.hook.yaml: uom_conversion_uoms_exist'
 bypassable_rules:
 - 'catalog.hook.yaml: brand_exists'
 - 'catalog.hook.yaml: default_uom_exists'

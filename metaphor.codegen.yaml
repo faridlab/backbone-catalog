@@ -62,6 +62,8 @@ user_owned:
   # None carries a generator marker, so a `--force` regen leaves them be — declared here
   # so the ownership is explicit rather than an artifact of the marker scheme.
   - "migrations/20260823000001_uom_parent_store_tree.up.sql"
+  # Hand-written: a conversion names live units only.
+  - "migrations/20261017120000_uom_conversion_names_live_units.*"
   - "migrations/20260823000001_uom_parent_store_tree.down.sql"
   - "migrations/20260825000001_add_standard_cost_to_item.up.sql"
   - "migrations/20260825000001_add_standard_cost_to_item.down.sql"

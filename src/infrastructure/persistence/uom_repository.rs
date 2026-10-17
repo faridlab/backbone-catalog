@@ -284,6 +284,23 @@ impl UomRepository {
         Ok(hit)
     }
 
+    /// Whether a live conversion names the unit, from or to.
+    pub async fn exists_live_conversion_using(
+        &self,
+        conn: &mut PgConnection,
+        uom: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT EXISTS ( \
+                 SELECT 1 FROM catalog.uom_conversions \
+                 WHERE (from_uom_id = $1 OR to_uom_id = $1) \
+                   AND (metadata->>'deleted_at') IS NULL )",
+        )
+        .bind(uom)
+        .fetch_one(conn)
+        .await
+    }
+
     /// Archive (soft-delete) a unit the validated retire path has cleared. The
     /// storage-level protected-unit guard is the backstop if a protected row ever
     /// reaches this UPDATE.

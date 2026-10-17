@@ -92,3 +92,26 @@ async fn a_delete_waits_for_a_create_on_its_unit_and_then_finds_the_item() {
     let deleted = delete.await.unwrap();
     assert!(matches!(deleted, Err(CatalogWriteError::UomInUse { .. })), "the unit now carries an item: {deleted:?}");
 }
+
+#[tokio::test]
+async fn a_conversion_names_live_units_only() {
+    let pool = pool().await;
+    let svc = CatalogWriteService::new(pool.clone());
+    let (from, to) = (unit(&svc).await, unit(&svc).await);
+
+    // A unit a live conversion names cannot be deleted.
+    sqlx::query("INSERT INTO catalog.uom_conversions (id, from_uom_id, to_uom_id, factor) VALUES ($1, $2, $3, 12)")
+        .bind(Uuid::new_v4()).bind(from).bind(to)
+        .execute(&pool).await.expect("a conversion between live units");
+    let refused = svc.delete_uom(to).await;
+    assert!(matches!(refused, Err(CatalogWriteError::UomInUse { .. })), "{refused:?}");
+
+    // A conversion cannot name a unit already deleted, whoever writes it.
+    let gone = unit(&svc).await;
+    svc.delete_uom(gone).await.expect("an unused unit deletes");
+    let err = sqlx::query("INSERT INTO catalog.uom_conversions (id, from_uom_id, to_uom_id, factor) VALUES ($1, $2, $3, 3)")
+        .bind(Uuid::new_v4()).bind(from).bind(gone)
+        .execute(&pool).await.expect_err("a deleted unit is refused");
+    let db = err.as_database_error().expect("a database refusal");
+    assert_eq!(db.constraint(), Some("ck_uom_conversions_uoms_exist__uom_not_found"), "{db:?}");
+}

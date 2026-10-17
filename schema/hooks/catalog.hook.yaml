@@ -104,7 +104,8 @@ rules:
     when: writing
     assert: "from_uom_id and to_uom_id reference existing non-deleted Uoms"
     error_code: uom_not_found
-    justification: "No writer, as uom_conversion_distinct; the conversion table's foreign keys refuse a missing UoM but not a soft-deleted one."
+    enforced_by: "migrations/20261017120000_uom_conversion_names_live_units.up.sql::uom_conversions_name_live_units, src/application/service/catalog_write_service.rs::delete_uom"
+    justification: "The trigger uom_conversions_name_live_units refuses any write of a conversion that names a soft-deleted or missing unit, whoever writes it, reading both units FOR SHARE; delete_uom locks the unit and refuses one a live conversion names (tests/uom_delete_races.rs a_conversion_names_live_units_only). The foreign keys refuse only a missing unit."
   - id: R14
     name: brand_exists
     entity: Item

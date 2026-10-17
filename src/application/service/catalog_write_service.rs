@@ -582,7 +582,9 @@ impl CatalogWriteService {
         if uoms.count_live_children(&mut *tx, uom_id).await? > 0 {
             return Err(CatalogWriteError::UomHasChildren { code });
         }
-        if uoms.exists_live_item_using(&mut *tx, uom_id).await? {
+        if uoms.exists_live_item_using(&mut *tx, uom_id).await?
+            || uoms.exists_live_conversion_using(&mut *tx, uom_id).await?
+        {
             return Err(CatalogWriteError::UomInUse { code });
         }
 
