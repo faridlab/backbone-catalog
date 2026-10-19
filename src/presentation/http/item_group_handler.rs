@@ -80,6 +80,13 @@ impl axum::response::IntoResponse for ItemGroupError {
 // Route Configuration
 // =============================================================================
 
+/// The permissions this entity's generic routes require: `item_group:<action>` for `read`, `create`,
+/// `update`, `delete`, `restore` and `purge`, with any rename the schema's `requires:` declares.
+pub fn item_group_permissions() -> backbone_core::http::CrudPermissions {
+    backbone_core::http::CrudPermissions::new("item_group")
+        .in_module("catalog")
+}
+
 /// Create Axum router with all 16 Backbone endpoints for ItemGroup.
 ///
 /// # Routes
@@ -109,21 +116,23 @@ impl axum::response::IntoResponse for ItemGroupError {
 /// let router = create_item_group_routes(service);
 /// ```
 pub fn create_item_group_routes(service: Arc<ItemGroupService>) -> Router {
-    BackboneCrudHandler::<ItemGroupService, ItemGroup, CreateItemGroupDto, UpdateItemGroupDto, ItemGroupResponseDto>::routes(
+    BackboneCrudHandler::<ItemGroupService, ItemGroup, CreateItemGroupDto, UpdateItemGroupDto, ItemGroupResponseDto>::routes_guarded(
         service,
         "/item_groups",
+        item_group_permissions(),
     )
 }
 
 /// Create Axum router with only the read (GET) endpoints for ItemGroup.
 ///
-/// Safe for public, unauthenticated exposure (e.g., reference data).
+/// Each route requires the entity's `read` permission, so it needs an authenticated caller.
 /// Mutations must be served separately via `create_item_group_write_routes`,
 /// typically wrapped in an auth middleware layer.
 pub fn create_item_group_read_routes(service: Arc<ItemGroupService>) -> Router {
-    BackboneCrudHandler::<ItemGroupService, ItemGroup, CreateItemGroupDto, UpdateItemGroupDto, ItemGroupResponseDto>::read_routes(
+    BackboneCrudHandler::<ItemGroupService, ItemGroup, CreateItemGroupDto, UpdateItemGroupDto, ItemGroupResponseDto>::read_routes_guarded(
         service,
         "/item_groups",
+        item_group_permissions(),
     )
 }
 
@@ -139,9 +148,10 @@ pub fn create_item_group_read_routes(service: Arc<ItemGroupService>) -> Router {
 /// service (e.g. a command router over its domain engine), serve THAT instead
 /// for any mutation that must respect domain rules.
 pub fn create_item_group_write_routes(service: Arc<ItemGroupService>) -> Router {
-    BackboneCrudHandler::<ItemGroupService, ItemGroup, CreateItemGroupDto, UpdateItemGroupDto, ItemGroupResponseDto>::write_routes(
+    BackboneCrudHandler::<ItemGroupService, ItemGroup, CreateItemGroupDto, UpdateItemGroupDto, ItemGroupResponseDto>::write_routes_guarded(
         service,
         "/item_groups",
+        item_group_permissions(),
     )
 }
 

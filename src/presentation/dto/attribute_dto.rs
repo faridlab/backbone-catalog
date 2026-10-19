@@ -34,9 +34,18 @@ pub struct CreateAttributeDto {
     pub code: String,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub name: String,
-    #[serde(alias = "attribute_type")]
+    #[serde(default = "default_create_attribute_attribute_type", alias = "attribute_type")]
     pub attribute_type: AttributeType,
+    #[serde(default = "default_create_attribute_status")]
     pub status: CatalogStatus,
+}
+
+fn default_create_attribute_attribute_type() -> AttributeType {
+    AttributeType::Other
+}
+
+fn default_create_attribute_status() -> CatalogStatus {
+    CatalogStatus::Active
 }
 
 // =============================================================================
@@ -245,12 +254,4 @@ impl backbone_core::ApplyUpdateDto<UpdateAttributeDto> for Attribute {
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to Attribute here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

@@ -162,6 +162,13 @@ impl super::Entity for UomConversion {
 }
 
 impl backbone_core::PersistentEntity for UomConversion {
+    fn references() -> &'static [backbone_core::Reference] {
+        const REFERENCES: &[backbone_core::Reference] = &[
+            backbone_core::Reference::new("from_uom_id", "catalog.uoms", "id"),
+            backbone_core::Reference::new("to_uom_id", "catalog.uoms", "id"),
+        ];
+        REFERENCES
+    }
     fn entity_id(&self) -> String {
         self.id.to_string()
     }

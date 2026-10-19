@@ -81,6 +81,13 @@ impl axum::response::IntoResponse for UomError {
 // Route Configuration
 // =============================================================================
 
+/// The permissions this entity's generic routes require: `uom:<action>` for `read`, `create`,
+/// `update`, `delete`, `restore` and `purge`, with any rename the schema's `requires:` declares.
+pub fn uom_permissions() -> backbone_core::http::CrudPermissions {
+    backbone_core::http::CrudPermissions::new("uom")
+        .in_module("catalog")
+}
+
 /// Create Axum router with all 16 Backbone endpoints for Uom.
 ///
 /// # Routes
@@ -110,21 +117,23 @@ impl axum::response::IntoResponse for UomError {
 /// let router = create_uom_routes(service);
 /// ```
 pub fn create_uom_routes(service: Arc<UomService>) -> Router {
-    BackboneCrudHandler::<UomService, Uom, CreateUomDto, UpdateUomDto, UomResponseDto>::routes(
+    BackboneCrudHandler::<UomService, Uom, CreateUomDto, UpdateUomDto, UomResponseDto>::routes_guarded(
         service,
         "/uoms",
+        uom_permissions(),
     )
 }
 
 /// Create Axum router with only the read (GET) endpoints for Uom.
 ///
-/// Safe for public, unauthenticated exposure (e.g., reference data).
+/// Each route requires the entity's `read` permission, so it needs an authenticated caller.
 /// Mutations must be served separately via `create_uom_write_routes`,
 /// typically wrapped in an auth middleware layer.
 pub fn create_uom_read_routes(service: Arc<UomService>) -> Router {
-    BackboneCrudHandler::<UomService, Uom, CreateUomDto, UpdateUomDto, UomResponseDto>::read_routes(
+    BackboneCrudHandler::<UomService, Uom, CreateUomDto, UpdateUomDto, UomResponseDto>::read_routes_guarded(
         service,
         "/uoms",
+        uom_permissions(),
     )
 }
 
@@ -140,9 +149,10 @@ pub fn create_uom_read_routes(service: Arc<UomService>) -> Router {
 /// service (e.g. a command router over its domain engine), serve THAT instead
 /// for any mutation that must respect domain rules.
 pub fn create_uom_write_routes(service: Arc<UomService>) -> Router {
-    BackboneCrudHandler::<UomService, Uom, CreateUomDto, UpdateUomDto, UomResponseDto>::write_routes(
+    BackboneCrudHandler::<UomService, Uom, CreateUomDto, UpdateUomDto, UomResponseDto>::write_routes_guarded(
         service,
         "/uoms",
+        uom_permissions(),
     )
 }
 

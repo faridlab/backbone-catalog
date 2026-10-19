@@ -80,6 +80,13 @@ impl axum::response::IntoResponse for BrandError {
 // Route Configuration
 // =============================================================================
 
+/// The permissions this entity's generic routes require: `brand:<action>` for `read`, `create`,
+/// `update`, `delete`, `restore` and `purge`, with any rename the schema's `requires:` declares.
+pub fn brand_permissions() -> backbone_core::http::CrudPermissions {
+    backbone_core::http::CrudPermissions::new("brand")
+        .in_module("catalog")
+}
+
 /// Create Axum router with all 16 Backbone endpoints for Brand.
 ///
 /// # Routes
@@ -109,21 +116,23 @@ impl axum::response::IntoResponse for BrandError {
 /// let router = create_brand_routes(service);
 /// ```
 pub fn create_brand_routes(service: Arc<BrandService>) -> Router {
-    BackboneCrudHandler::<BrandService, Brand, CreateBrandDto, UpdateBrandDto, BrandResponseDto>::routes(
+    BackboneCrudHandler::<BrandService, Brand, CreateBrandDto, UpdateBrandDto, BrandResponseDto>::routes_guarded(
         service,
         "/brands",
+        brand_permissions(),
     )
 }
 
 /// Create Axum router with only the read (GET) endpoints for Brand.
 ///
-/// Safe for public, unauthenticated exposure (e.g., reference data).
+/// Each route requires the entity's `read` permission, so it needs an authenticated caller.
 /// Mutations must be served separately via `create_brand_write_routes`,
 /// typically wrapped in an auth middleware layer.
 pub fn create_brand_read_routes(service: Arc<BrandService>) -> Router {
-    BackboneCrudHandler::<BrandService, Brand, CreateBrandDto, UpdateBrandDto, BrandResponseDto>::read_routes(
+    BackboneCrudHandler::<BrandService, Brand, CreateBrandDto, UpdateBrandDto, BrandResponseDto>::read_routes_guarded(
         service,
         "/brands",
+        brand_permissions(),
     )
 }
 
@@ -139,9 +148,10 @@ pub fn create_brand_read_routes(service: Arc<BrandService>) -> Router {
 /// service (e.g. a command router over its domain engine), serve THAT instead
 /// for any mutation that must respect domain rules.
 pub fn create_brand_write_routes(service: Arc<BrandService>) -> Router {
-    BackboneCrudHandler::<BrandService, Brand, CreateBrandDto, UpdateBrandDto, BrandResponseDto>::write_routes(
+    BackboneCrudHandler::<BrandService, Brand, CreateBrandDto, UpdateBrandDto, BrandResponseDto>::write_routes_guarded(
         service,
         "/brands",
+        brand_permissions(),
     )
 }
 

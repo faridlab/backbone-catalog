@@ -16,14 +16,14 @@ pub mod uom_conversion_handler;
 
 
 // Re-exports
-pub use attribute_handler::{create_attribute_routes, create_attribute_read_routes, create_attribute_write_routes};
-pub use attribute_value_handler::{create_attribute_value_routes, create_attribute_value_read_routes, create_attribute_value_write_routes};
-pub use brand_handler::{create_brand_routes, create_brand_read_routes, create_brand_write_routes};
-pub use item_handler::{create_item_routes, create_item_read_routes, create_item_write_routes};
-pub use item_group_handler::{create_item_group_routes, create_item_group_read_routes, create_item_group_write_routes};
-pub use item_variant_handler::{create_item_variant_routes, create_item_variant_read_routes, create_item_variant_write_routes};
-pub use uom_handler::{create_uom_routes, create_uom_read_routes, create_uom_write_routes};
-pub use uom_conversion_handler::{create_uom_conversion_routes, create_uom_conversion_read_routes, create_uom_conversion_write_routes};
+pub use attribute_handler::{create_attribute_routes, create_attribute_read_routes, create_attribute_write_routes, attribute_permissions};
+pub use attribute_value_handler::{create_attribute_value_routes, create_attribute_value_read_routes, create_attribute_value_write_routes, attribute_value_permissions};
+pub use brand_handler::{create_brand_routes, create_brand_read_routes, create_brand_write_routes, brand_permissions};
+pub use item_handler::{create_item_routes, create_item_read_routes, create_item_write_routes, item_permissions};
+pub use item_group_handler::{create_item_group_routes, create_item_group_read_routes, create_item_group_write_routes, item_group_permissions};
+pub use item_variant_handler::{create_item_variant_routes, create_item_variant_read_routes, create_item_variant_write_routes, item_variant_permissions};
+pub use uom_handler::{create_uom_routes, create_uom_read_routes, create_uom_write_routes, uom_permissions};
+pub use uom_conversion_handler::{create_uom_conversion_routes, create_uom_conversion_read_routes, create_uom_conversion_write_routes, uom_conversion_permissions};
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");

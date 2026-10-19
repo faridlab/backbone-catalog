@@ -35,20 +35,34 @@ pub struct CreateUomDto {
     pub code: String,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub name: String,
-    #[serde(alias = "uom_type")]
+    #[serde(default = "default_create_uom_uom_type", alias = "uom_type")]
     pub uom_type: UomType,
     #[cfg_attr(feature = "openapi", schema(example = 42))]
-    #[serde(alias = "decimal_places")]
+    #[serde(default, alias = "decimal_places")]
     pub decimal_places: i32,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "relative_uom_id")]
     pub relative_uom_id: Option<Uuid>,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "relative_factor")]
     pub relative_factor: Option<Decimal>,
+    #[serde(default = "default_create_uom_factor")]
     pub factor: Decimal,
     #[cfg_attr(feature = "openapi", schema(example = true))]
-    #[serde(alias = "is_protected")]
+    #[serde(default, alias = "is_protected")]
     pub is_protected: bool,
+    #[serde(default = "default_create_uom_status")]
     pub status: CatalogStatus,
+}
+
+fn default_create_uom_uom_type() -> UomType {
+    UomType::Count
+}
+
+fn default_create_uom_factor() -> Decimal {
+    Decimal::from(1_i64)
+}
+
+fn default_create_uom_status() -> CatalogStatus {
+    CatalogStatus::Active
 }
 
 // =============================================================================
@@ -106,10 +120,10 @@ pub struct PatchUomDto {
     #[cfg_attr(feature = "openapi", schema(example = 42))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "decimal_places")]
     pub decimal_places: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "relative_uom_id")]
-    pub relative_uom_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "relative_factor")]
-    pub relative_factor: Option<Decimal>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "relative_uom_id")]
+    pub relative_uom_id: Option<Option<Uuid>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "relative_factor")]
+    pub relative_factor: Option<Option<Decimal>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub factor: Option<Decimal>,
     #[cfg_attr(feature = "openapi", schema(example = true))]
@@ -307,12 +321,4 @@ impl backbone_core::ApplyUpdateDto<UpdateUomDto> for Uom {
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to Uom here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

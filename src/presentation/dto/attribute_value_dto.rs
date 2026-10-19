@@ -43,9 +43,14 @@ pub struct CreateAttributeValueDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     #[cfg_attr(feature = "openapi", schema(example = 42))]
-    #[serde(alias = "sort_order")]
+    #[serde(default, alias = "sort_order")]
     pub sort_order: i32,
+    #[serde(default = "default_create_attribute_value_status")]
     pub status: CatalogStatus,
+}
+
+fn default_create_attribute_value_status() -> CatalogStatus {
+    CatalogStatus::Active
 }
 
 // =============================================================================
@@ -100,12 +105,12 @@ pub struct PatchAttributeValueDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "label_en")]
-    pub label_en: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "swatch_hex")]
-    pub swatch_hex: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub icon: Option<String>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "label_en")]
+    pub label_en: Option<Option<String>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "swatch_hex")]
+    pub swatch_hex: Option<Option<String>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option")]
+    pub icon: Option<Option<String>>,
     #[cfg_attr(feature = "openapi", schema(example = 42))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "sort_order")]
     pub sort_order: Option<i32>,
@@ -296,12 +301,4 @@ impl backbone_core::ApplyUpdateDto<UpdateAttributeValueDto> for AttributeValue {
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to AttributeValue here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

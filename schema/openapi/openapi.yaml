@@ -3003,9 +3003,6 @@ components:
       required:
         - code
         - name
-        - attribute_type
-        - status
-        - metadata
       properties:
         code:
           type: string
@@ -3017,8 +3014,6 @@ components:
           type: string
         status:
           type: string
-        metadata:
-          type: object
 
     UpdateAttributeRequest:
       type: object
@@ -3027,7 +3022,6 @@ components:
         - name
         - attribute_type
         - status
-        - metadata
       properties:
         code:
           type: string
@@ -3039,8 +3033,6 @@ components:
           type: string
         status:
           type: string
-        metadata:
-          type: object
 
     PatchAttributeRequest:
       type: object
@@ -3055,8 +3047,6 @@ components:
           type: string
         status:
           type: string
-        metadata:
-          type: object
 
     AttributeList:
       type: object
@@ -3130,9 +3120,6 @@ components:
         - attribute_id
         - code
         - label
-        - sort_order
-        - status
-        - metadata
       properties:
         attribute_id:
           type: string
@@ -3160,8 +3147,6 @@ components:
           format: int32
         status:
           type: string
-        metadata:
-          type: object
 
     UpdateAttributeValueRequest:
       type: object
@@ -3171,7 +3156,6 @@ components:
         - label
         - sort_order
         - status
-        - metadata
       properties:
         attribute_id:
           type: string
@@ -3199,8 +3183,6 @@ components:
           format: int32
         status:
           type: string
-        metadata:
-          type: object
 
     PatchAttributeValueRequest:
       type: object
@@ -3231,8 +3213,6 @@ components:
           format: int32
         status:
           type: string
-        metadata:
-          type: object
 
     AttributeValueList:
       type: object
@@ -3301,9 +3281,6 @@ components:
       required:
         - code
         - name
-        - sort_order
-        - status
-        - metadata
       properties:
         code:
           type: string
@@ -3328,8 +3305,6 @@ components:
           format: int32
         status:
           type: string
-        metadata:
-          type: object
 
     UpdateBrandRequest:
       type: object
@@ -3338,7 +3313,6 @@ components:
         - name
         - sort_order
         - status
-        - metadata
       properties:
         code:
           type: string
@@ -3363,8 +3337,6 @@ components:
           format: int32
         status:
           type: string
-        metadata:
-          type: object
 
     PatchBrandRequest:
       type: object
@@ -3392,8 +3364,6 @@ components:
           format: int32
         status:
           type: string
-        metadata:
-          type: object
 
     BrandList:
       type: object
@@ -3510,16 +3480,6 @@ components:
         - name
         - item_group_id
         - default_uom_id
-        - item_type
-        - is_sales_item
-        - is_purchase_item
-        - is_stock_item
-        - has_variants
-        - is_taxable
-        - tags
-        - data
-        - status
-        - metadata
       properties:
         item_code:
           type: string
@@ -3578,10 +3538,6 @@ components:
         tags:
           type: object
         data:
-          type: object
-        status:
-          type: string
-        metadata:
           type: object
 
     UpdateItemRequest:
@@ -3600,7 +3556,6 @@ components:
         - tags
         - data
         - status
-        - metadata
       properties:
         item_code:
           type: string
@@ -3662,8 +3617,6 @@ components:
           type: object
         status:
           type: string
-        metadata:
-          type: object
 
     PatchItemRequest:
       type: object
@@ -3728,8 +3681,6 @@ components:
           type: object
         status:
           type: string
-        metadata:
-          type: object
 
     ItemList:
       type: object
@@ -3797,11 +3748,6 @@ components:
       required:
         - code
         - name
-        - is_group
-        - level
-        - sort_order
-        - status
-        - metadata
       properties:
         code:
           type: string
@@ -3821,10 +3767,6 @@ components:
         sort_order:
           type: integer
           format: int32
-        status:
-          type: string
-        metadata:
-          type: object
 
     UpdateItemGroupRequest:
       type: object
@@ -3835,7 +3777,6 @@ components:
         - level
         - sort_order
         - status
-        - metadata
       properties:
         code:
           type: string
@@ -3857,8 +3798,6 @@ components:
           format: int32
         status:
           type: string
-        metadata:
-          type: object
 
     PatchItemGroupRequest:
       type: object
@@ -3883,8 +3822,6 @@ components:
           format: int32
         status:
           type: string
-        metadata:
-          type: object
 
     ItemGroupList:
       type: object
@@ -3955,10 +3892,6 @@ components:
         - item_id
         - sku
         - variant_label
-        - options
-        - is_default
-        - status
-        - metadata
       properties:
         item_id:
           type: string
@@ -3982,8 +3915,6 @@ components:
           type: string
         status:
           type: string
-        metadata:
-          type: object
 
     UpdateItemVariantRequest:
       type: object
@@ -3994,7 +3925,6 @@ components:
         - options
         - is_default
         - status
-        - metadata
       properties:
         item_id:
           type: string
@@ -4018,8 +3948,6 @@ components:
           type: string
         status:
           type: string
-        metadata:
-          type: object
 
     PatchItemVariantRequest:
       type: object
@@ -4046,8 +3974,6 @@ components:
           type: string
         status:
           type: string
-        metadata:
-          type: object
 
     ItemVariantList:
       type: object
@@ -4122,12 +4048,6 @@ components:
       required:
         - code
         - name
-        - uom_type
-        - decimal_places
-        - factor
-        - is_protected
-        - status
-        - metadata
       properties:
         code:
           type: string
@@ -4155,8 +4075,6 @@ components:
           type: boolean
         status:
           type: string
-        metadata:
-          type: object
 
     UpdateUomRequest:
       type: object
@@ -4168,7 +4086,6 @@ components:
         - factor
         - is_protected
         - status
-        - metadata
       properties:
         code:
           type: string
@@ -4196,8 +4113,6 @@ components:
           type: boolean
         status:
           type: string
-        metadata:
-          type: object
 
     PatchUomRequest:
       type: object
@@ -4228,8 +4143,6 @@ components:
           type: boolean
         status:
           type: string
-        metadata:
-          type: object
 
     UomList:
       type: object
@@ -4283,7 +4196,6 @@ components:
         - from_uom_id
         - to_uom_id
         - factor
-        - metadata
       properties:
         from_uom_id:
           type: string
@@ -4293,8 +4205,6 @@ components:
           format: uuid
         factor:
           type: string
-        metadata:
-          type: object
 
     UpdateUomConversionRequest:
       type: object
@@ -4302,7 +4212,6 @@ components:
         - from_uom_id
         - to_uom_id
         - factor
-        - metadata
       properties:
         from_uom_id:
           type: string
@@ -4312,8 +4221,6 @@ components:
           format: uuid
         factor:
           type: string
-        metadata:
-          type: object
 
     PatchUomConversionRequest:
       type: object
@@ -4326,8 +4233,6 @@ components:
           format: uuid
         factor:
           type: string
-        metadata:
-          type: object
 
     UomConversionList:
       type: object

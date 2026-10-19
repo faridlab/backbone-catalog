@@ -215,6 +215,12 @@ impl super::Entity for AttributeValue {
 }
 
 impl backbone_core::PersistentEntity for AttributeValue {
+    fn references() -> &'static [backbone_core::Reference] {
+        const REFERENCES: &[backbone_core::Reference] = &[
+            backbone_core::Reference::new("attribute_id", "catalog.attributes", "id"),
+        ];
+        REFERENCES
+    }
     fn entity_id(&self) -> String {
         self.id.to_string()
     }

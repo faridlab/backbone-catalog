@@ -80,6 +80,13 @@ impl axum::response::IntoResponse for AttributeValueError {
 // Route Configuration
 // =============================================================================
 
+/// The permissions this entity's generic routes require: `attribute_value:<action>` for `read`, `create`,
+/// `update`, `delete`, `restore` and `purge`, with any rename the schema's `requires:` declares.
+pub fn attribute_value_permissions() -> backbone_core::http::CrudPermissions {
+    backbone_core::http::CrudPermissions::new("attribute_value")
+        .in_module("catalog")
+}
+
 /// Create Axum router with all 16 Backbone endpoints for AttributeValue.
 ///
 /// # Routes
@@ -109,21 +116,23 @@ impl axum::response::IntoResponse for AttributeValueError {
 /// let router = create_attribute_value_routes(service);
 /// ```
 pub fn create_attribute_value_routes(service: Arc<AttributeValueService>) -> Router {
-    BackboneCrudHandler::<AttributeValueService, AttributeValue, CreateAttributeValueDto, UpdateAttributeValueDto, AttributeValueResponseDto>::routes(
+    BackboneCrudHandler::<AttributeValueService, AttributeValue, CreateAttributeValueDto, UpdateAttributeValueDto, AttributeValueResponseDto>::routes_guarded(
         service,
         "/attribute_values",
+        attribute_value_permissions(),
     )
 }
 
 /// Create Axum router with only the read (GET) endpoints for AttributeValue.
 ///
-/// Safe for public, unauthenticated exposure (e.g., reference data).
+/// Each route requires the entity's `read` permission, so it needs an authenticated caller.
 /// Mutations must be served separately via `create_attribute_value_write_routes`,
 /// typically wrapped in an auth middleware layer.
 pub fn create_attribute_value_read_routes(service: Arc<AttributeValueService>) -> Router {
-    BackboneCrudHandler::<AttributeValueService, AttributeValue, CreateAttributeValueDto, UpdateAttributeValueDto, AttributeValueResponseDto>::read_routes(
+    BackboneCrudHandler::<AttributeValueService, AttributeValue, CreateAttributeValueDto, UpdateAttributeValueDto, AttributeValueResponseDto>::read_routes_guarded(
         service,
         "/attribute_values",
+        attribute_value_permissions(),
     )
 }
 
@@ -139,9 +148,10 @@ pub fn create_attribute_value_read_routes(service: Arc<AttributeValueService>) -
 /// service (e.g. a command router over its domain engine), serve THAT instead
 /// for any mutation that must respect domain rules.
 pub fn create_attribute_value_write_routes(service: Arc<AttributeValueService>) -> Router {
-    BackboneCrudHandler::<AttributeValueService, AttributeValue, CreateAttributeValueDto, UpdateAttributeValueDto, AttributeValueResponseDto>::write_routes(
+    BackboneCrudHandler::<AttributeValueService, AttributeValue, CreateAttributeValueDto, UpdateAttributeValueDto, AttributeValueResponseDto>::write_routes_guarded(
         service,
         "/attribute_values",
+        attribute_value_permissions(),
     )
 }
 

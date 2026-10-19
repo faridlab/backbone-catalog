@@ -38,15 +38,25 @@ pub struct CreateItemVariantDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(alias = "variant_label")]
     pub variant_label: String,
+    #[serde(default = "default_create_item_variant_options")]
     pub options: serde_json::Value,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub barcode: Option<String>,
     #[cfg_attr(feature = "openapi", schema(example = true))]
-    #[serde(alias = "is_default")]
+    #[serde(default, alias = "is_default")]
     pub is_default: bool,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "weight_per_unit")]
     pub weight_per_unit: Option<Decimal>,
+    #[serde(default = "default_create_item_variant_status")]
     pub status: CatalogStatus,
+}
+
+fn default_create_item_variant_options() -> serde_json::Value {
+    serde_json::json!({})
+}
+
+fn default_create_item_variant_status() -> CatalogStatus {
+    CatalogStatus::Active
 }
 
 // =============================================================================
@@ -103,13 +113,13 @@ pub struct PatchItemVariantDto {
     pub variant_label: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub barcode: Option<String>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option")]
+    pub barcode: Option<Option<String>>,
     #[cfg_attr(feature = "openapi", schema(example = true))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "is_default")]
     pub is_default: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "weight_per_unit")]
-    pub weight_per_unit: Option<Decimal>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "weight_per_unit")]
+    pub weight_per_unit: Option<Option<Decimal>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<CatalogStatus>,
 }
@@ -297,12 +307,4 @@ impl backbone_core::ApplyUpdateDto<UpdateItemVariantDto> for ItemVariant {
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to ItemVariant here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

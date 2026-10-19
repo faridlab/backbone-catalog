@@ -40,9 +40,14 @@ pub struct CreateBrandDto {
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "logo_url")]
     pub logo_url: Option<String>,
     #[cfg_attr(feature = "openapi", schema(example = 42))]
-    #[serde(alias = "sort_order")]
+    #[serde(default, alias = "sort_order")]
     pub sort_order: i32,
+    #[serde(default = "default_create_brand_status")]
     pub status: CatalogStatus,
+}
+
+fn default_create_brand_status() -> CatalogStatus {
+    CatalogStatus::Active
 }
 
 // =============================================================================
@@ -91,12 +96,12 @@ pub struct PatchBrandDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "short_description")]
-    pub short_description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "logo_url")]
-    pub logo_url: Option<String>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "short_description")]
+    pub short_description: Option<Option<String>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option")]
+    pub description: Option<Option<String>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "logo_url")]
+    pub logo_url: Option<Option<String>>,
     #[cfg_attr(feature = "openapi", schema(example = 42))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "sort_order")]
     pub sort_order: Option<i32>,
@@ -281,12 +286,4 @@ impl backbone_core::ApplyUpdateDto<UpdateBrandDto> for Brand {
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to Brand here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

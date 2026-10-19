@@ -238,11 +238,3 @@ impl backbone_core::ApplyUpdateDto<UpdateUomConversionDto> for UomConversion {
     }
 }
 
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to UomConversion here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
-

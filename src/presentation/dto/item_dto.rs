@@ -48,26 +48,26 @@ pub struct CreateItemDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "default_uom_id")]
     pub default_uom_id: Uuid,
-    #[serde(alias = "item_type")]
+    #[serde(default = "default_create_item_item_type", alias = "item_type")]
     pub item_type: ItemType,
     #[cfg_attr(feature = "openapi", schema(example = true))]
-    #[serde(alias = "is_sales_item")]
+    #[serde(default = "default_create_item_is_sales_item", alias = "is_sales_item")]
     pub is_sales_item: bool,
     #[cfg_attr(feature = "openapi", schema(example = true))]
-    #[serde(alias = "is_purchase_item")]
+    #[serde(default = "default_create_item_is_purchase_item", alias = "is_purchase_item")]
     pub is_purchase_item: bool,
     #[cfg_attr(feature = "openapi", schema(example = true))]
-    #[serde(alias = "is_stock_item")]
+    #[serde(default = "default_create_item_is_stock_item", alias = "is_stock_item")]
     pub is_stock_item: bool,
     #[cfg_attr(feature = "openapi", schema(example = true))]
-    #[serde(alias = "has_variants")]
+    #[serde(default, alias = "has_variants")]
     pub has_variants: bool,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "hsn_code")]
     pub hsn_code: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sni: Option<String>,
     #[cfg_attr(feature = "openapi", schema(example = true))]
-    #[serde(alias = "is_taxable")]
+    #[serde(default = "default_create_item_is_taxable", alias = "is_taxable")]
     pub is_taxable: bool,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "weight_per_unit")]
     pub weight_per_unit: Option<Decimal>,
@@ -75,8 +75,38 @@ pub struct CreateItemDto {
     pub shelf_life_days: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "standard_cost")]
     pub standard_cost: Option<Decimal>,
+    #[serde(default = "default_create_item_tags")]
     pub tags: serde_json::Value,
+    #[serde(default = "default_create_item_data")]
     pub data: serde_json::Value,
+}
+
+fn default_create_item_item_type() -> ItemType {
+    ItemType::PhysicalGood
+}
+
+fn default_create_item_is_sales_item() -> bool {
+    true
+}
+
+fn default_create_item_is_purchase_item() -> bool {
+    true
+}
+
+fn default_create_item_is_stock_item() -> bool {
+    true
+}
+
+fn default_create_item_is_taxable() -> bool {
+    true
+}
+
+fn default_create_item_tags() -> serde_json::Value {
+    serde_json::json!([])
+}
+
+fn default_create_item_data() -> serde_json::Value {
+    serde_json::json!({})
 }
 
 // =============================================================================
@@ -158,12 +188,12 @@ pub struct PatchItemDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub barcode: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "brand_id")]
-    pub brand_id: Option<Uuid>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option")]
+    pub description: Option<Option<String>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option")]
+    pub barcode: Option<Option<String>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "brand_id")]
+    pub brand_id: Option<Option<Uuid>>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "item_group_id")]
     pub item_group_id: Option<Uuid>,
@@ -184,19 +214,19 @@ pub struct PatchItemDto {
     #[cfg_attr(feature = "openapi", schema(example = true))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "has_variants")]
     pub has_variants: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "hsn_code")]
-    pub hsn_code: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sni: Option<String>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "hsn_code")]
+    pub hsn_code: Option<Option<String>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option")]
+    pub sni: Option<Option<String>>,
     #[cfg_attr(feature = "openapi", schema(example = true))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "is_taxable")]
     pub is_taxable: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "weight_per_unit")]
-    pub weight_per_unit: Option<Decimal>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "shelf_life_days")]
-    pub shelf_life_days: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "standard_cost")]
-    pub standard_cost: Option<Decimal>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "weight_per_unit")]
+    pub weight_per_unit: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "shelf_life_days")]
+    pub shelf_life_days: Option<Option<i32>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "standard_cost")]
+    pub standard_cost: Option<Option<Decimal>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -458,12 +488,4 @@ impl backbone_core::ApplyUpdateDto<UpdateItemDto> for Item {
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to Item here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 
